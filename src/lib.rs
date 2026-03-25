@@ -1,7 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
+mod rendering;
+
 use std::fs;
 use std::fs::File;
+use std::panic::catch_unwind;
 use std::path::PathBuf;
 use std::ptr::NonNull;
 use std::sync::OnceLock;
@@ -12,10 +15,11 @@ use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use pmod::fmg::MsgRepository;
 use tracing_subscriber::fmt;
-use tracing_subscriber::fmt::layer;
 use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
+use crate::rendering::{init_rendering, SpellWheel};
 
 static GAME_PATH: OnceLock<PathBuf> = OnceLock::new();
+pub static HMODULE: OnceLock<usize> = OnceLock::new();
 
 #[unsafe(no_mangle)]
 #[allow(nonstandard_style)]
@@ -27,28 +31,43 @@ pub unsafe extern "C" fn DllMain(hmodule: usize, reason: u32) -> bool {
         return true;
     }
 
+    HMODULE.set(hmodule).unwrap();
     std::panic::set_hook(Box::new(move |info| {
         let msg = info.to_string();
-        let _ = fs::write(get_log_path(hmodule), msg);
+        let _ = fs::write(get_log_path(), msg);
     }));
 
-    fmt().with_writer(File::create(get_log_path(hmodule)).expect("Could not create log file"))
+    fmt().with_writer(File::create(get_log_path()).expect("Could not create log file"))
         .with_ansi(false)
         .init();
     tracing::info!("Log file created");
-    GAME_PATH.set(get_game_path(hmodule)).unwrap();
-    tracing::info!("Game path set");
-
-    std::thread::spawn(main_thread);
+    let code = catch_unwind(|| {
+        start();
+    });
+    if code.is_err() {
+        tracing::error!("{}", panic_message::panic_message(&code.unwrap_err()));
+    }
 
     true
 }
 
-fn get_dll_path(hmodule: usize) -> PathBuf {
+fn start() {
+    GAME_PATH.set(get_game_path()).unwrap();
+    tracing::info!("Game path set");
+
+    tracing::info!("Awaiting system init");
+    wait_for_system_init(&Program::current(), Duration::MAX)
+        .expect("Could not await system init.");
+    
+    std::thread::spawn(main_thread);
+    std::thread::spawn(init_rendering);
+}
+
+fn get_dll_path() -> PathBuf {
     let mut buf = vec![0; 260];
     unsafe {
         GetModuleFileNameW(
-            hmodule as _,
+            *HMODULE.get().unwrap() as _,
             buf.as_mut_ptr(),
             buf.len() as u32,
         );
@@ -57,26 +76,23 @@ fn get_dll_path(hmodule: usize) -> PathBuf {
     PathBuf::from(String::from_utf16_lossy(&buf[..len]))
 }
 
-fn get_mods_folder_path(hmodule: usize) -> PathBuf {
-    get_dll_path(hmodule).parent().unwrap()
+fn get_mods_folder_path() -> PathBuf {
+    get_dll_path().parent().unwrap()
         .to_path_buf()
 }
 
-fn get_log_path(hmodule: usize) -> PathBuf {
-    get_mods_folder_path(hmodule)
+fn get_log_path() -> PathBuf {
+    get_mods_folder_path()
         .join("spellwheel.log")
 }
 
-fn get_game_path(hmodule: usize) -> PathBuf {
-    get_mods_folder_path(hmodule)
+fn get_game_path() -> PathBuf {
+    get_mods_folder_path()
         .parent().unwrap()
         .to_path_buf()
 }
 
 fn main_thread() {
-    tracing::info!("Awaiting system init");
-    wait_for_system_init(&Program::current(), Duration::MAX)
-        .expect("Could not await system init.");
 
     tracing::info!("Main function called");
     let tasks = unsafe { CSTaskImp::instance() }.unwrap();
@@ -97,14 +113,10 @@ fn tick(_fd4: &FD4TaskData) {
     }
 
     let spell_names = equipped_spell_ids.into_iter()
-        .map(get_spell_name)
+        .filter_map(|spell_id| get_spell_name(spell_id))
         .collect::<Vec<_>>();
 
-    let Some(renderer) = unsafe { RendMan::instance() }.ok() else {
-        return;
-    };
-
-    tracing::info!("{spell_names:?}");
+    SpellWheel::set_spell_names(spell_names);
 }
 
 fn get_spell_name(spell_id: u32) -> Option<String> {
