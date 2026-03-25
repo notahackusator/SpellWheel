@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::ptr::NonNull;
 use std::sync::OnceLock;
 use std::time::Duration;
-use eldenring::cs::{CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, MsbRepository, RendMan, SoloParamRepository};
+use eldenring::cs::{CSTaskGroupIndex, CSTaskImp, GameDataMan};
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
@@ -18,8 +18,11 @@ use tracing_subscriber::fmt;
 use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
 use crate::rendering::{init_rendering, SpellWheel};
 
-static GAME_PATH: OnceLock<PathBuf> = OnceLock::new();
-pub static HMODULE: OnceLock<usize> = OnceLock::new();
+static HMODULE: OnceLock<usize> = OnceLock::new();
+
+pub fn hmodule() -> usize {
+    *HMODULE.get().unwrap()
+}
 
 #[unsafe(no_mangle)]
 #[allow(nonstandard_style)]
@@ -52,48 +55,15 @@ pub unsafe extern "C" fn DllMain(hmodule: usize, reason: u32) -> bool {
 }
 
 fn start() {
-    GAME_PATH.set(get_game_path()).unwrap();
-    tracing::info!("Game path set");
-
     tracing::info!("Awaiting system init");
     wait_for_system_init(&Program::current(), Duration::MAX)
         .expect("Could not await system init.");
-    
+
     std::thread::spawn(main_thread);
     std::thread::spawn(init_rendering);
 }
 
-fn get_dll_path() -> PathBuf {
-    let mut buf = vec![0; 260];
-    unsafe {
-        GetModuleFileNameW(
-            *HMODULE.get().unwrap() as _,
-            buf.as_mut_ptr(),
-            buf.len() as u32,
-        );
-    }
-    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-    PathBuf::from(String::from_utf16_lossy(&buf[..len]))
-}
-
-fn get_mods_folder_path() -> PathBuf {
-    get_dll_path().parent().unwrap()
-        .to_path_buf()
-}
-
-fn get_log_path() -> PathBuf {
-    get_mods_folder_path()
-        .join("spellwheel.log")
-}
-
-fn get_game_path() -> PathBuf {
-    get_mods_folder_path()
-        .parent().unwrap()
-        .to_path_buf()
-}
-
 fn main_thread() {
-
     tracing::info!("Main function called");
     let tasks = unsafe { CSTaskImp::instance() }.unwrap();
     tasks.run_recurring(
@@ -112,6 +82,10 @@ fn tick(_fd4: &FD4TaskData) {
         equipped_spell_ids.push(entry.param_id as u32);
     }
 
+    if equipped_spell_ids.is_empty() {
+        return;
+    }
+
     let spell_names = equipped_spell_ids.into_iter()
         .filter_map(|spell_id| get_spell_name(spell_id))
         .collect::<Vec<_>>();
@@ -119,12 +93,39 @@ fn tick(_fd4: &FD4TaskData) {
     SpellWheel::set_spell_names(spell_names);
 }
 
+fn get_dll_path() -> PathBuf {
+    let mut buf = vec![0; 260];
+    unsafe {
+        GetModuleFileNameW(
+            hmodule() as _,
+            buf.as_mut_ptr(),
+            buf.len() as u32,
+        );
+    }
+    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    PathBuf::from(String::from_utf16_lossy(&buf[..len]))
+}
+
+fn get_mods_folder_path() -> PathBuf {
+    get_dll_path().parent().unwrap()
+        .to_path_buf()
+}
+
+fn get_log_path() -> PathBuf {
+    get_mods_folder_path()
+        .join("spellwheel.log")
+}
+
 fn get_spell_name(spell_id: u32) -> Option<String> {
-    const SPELL_NAME: u32 = 10;
+    const BASE_GAME_SPELL_NAME: u32 = 10;
+    const DLC_SPELL_NAME: u32 = 319;
+
     unsafe {
         read_utf16_string(MsgRepository::get_msg(
-            0, SPELL_NAME, spell_id
-        ))
+            0, BASE_GAME_SPELL_NAME, spell_id
+        )).or(read_utf16_string(MsgRepository::get_msg(
+            0, DLC_SPELL_NAME, spell_id
+        )))
     }
 }
 

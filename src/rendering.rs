@@ -4,12 +4,12 @@ use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
-use crate::HMODULE;
+use crate::hmodule;
 
 pub fn init_rendering() {
     if let Err(e) = Hudhook::builder()
         .with::<ImguiDx12Hooks>(SpellWheel::instance())
-        .with_hmodule(HINSTANCE(*HMODULE.get().unwrap() as _))
+        .with_hmodule(HINSTANCE(hmodule() as _))
         .build()
         .apply()
     {
