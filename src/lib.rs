@@ -1,27 +1,27 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 mod rendering;
+mod debugging;
 
-use std::fs;
 use std::fs::File;
 use std::panic::catch_unwind;
 use std::path::PathBuf;
 use std::ptr::NonNull;
 use std::sync::OnceLock;
 use std::time::Duration;
-use eldenring::cs::{CSTaskGroupIndex, CSTaskImp, GameDataMan};
+use eldenring::cs::{CSActionButtonManImp, CSEventManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository};
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use pmod::fmg::MsgRepository;
 use tracing_subscriber::fmt;
 use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
-use crate::rendering::{init_rendering, SpellWheel};
+use crate::rendering::{try_init_rendering, SpellWheelData};
 
 static HMODULE: OnceLock<usize> = OnceLock::new();
 
 pub fn hmodule() -> usize {
-    *HMODULE.get().unwrap()
+    *HMODULE.get().expect("Could not get HMODULE")
 }
 
 #[unsafe(no_mangle)]
@@ -34,22 +34,24 @@ pub unsafe extern "C" fn DllMain(hmodule: usize, reason: u32) -> bool {
         return true;
     }
 
-    HMODULE.set(hmodule).unwrap();
-    std::panic::set_hook(Box::new(move |info| {
-        let msg = info.to_string();
-        let _ = fs::write(get_log_path(), msg);
-    }));
+    HMODULE.set(hmodule).expect("Could not set HMODULE");
 
     fmt().with_writer(File::create(get_log_path()).expect("Could not create log file"))
         .with_ansi(false)
         .init();
     tracing::info!("Log file created");
-    let code = catch_unwind(|| {
-        start();
+    std::panic::set_hook(Box::new(move |info| {
+        let msg = info.to_string();
+        tracing::error!("Encountered an error:\n{msg}");
+    }));
+    std::thread::spawn(|| {
+        let code = catch_unwind(|| {
+            start();
+        });
+        if code.is_err() {
+            tracing::error!("Encountered an error:\n{}", panic_message::panic_message(&code.unwrap_err()));
+        }
     });
-    if code.is_err() {
-        tracing::error!("{}", panic_message::panic_message(&code.unwrap_err()));
-    }
 
     true
 }
@@ -59,8 +61,7 @@ fn start() {
     wait_for_system_init(&Program::current(), Duration::MAX)
         .expect("Could not await system init.");
 
-    std::thread::spawn(main_thread);
-    std::thread::spawn(init_rendering);
+    main_thread();
 }
 
 fn main_thread() {
@@ -72,25 +73,62 @@ fn main_thread() {
     );
 }
 
+#[derive(Clone)]
+struct Spell {
+    index: usize,
+    id: u32,
+    name: String,
+}
+
+impl Spell {
+    fn try_new(index: usize, id: u32, name: Option<String>) -> Option<Self> {
+        name.map(|name| Self { index, id, name })
+    }
+}
+
+static mut PREV_SELECTED_SPELL: i32 = 0;
 fn tick(_fd4: &FD4TaskData) {
     let Some(game_data_man) = unsafe { GameDataMan::instance() }.ok() else {
         return;
     };
 
-    let mut equipped_spell_ids = Vec::with_capacity(14);
-    for entry in &game_data_man.main_player_game_data.equipment.equip_magic_data.entries {
-        equipped_spell_ids.push(entry.param_id as u32);
+    let Some(param_repo) = unsafe { SoloParamRepository::instance() }.ok() else {
+        return;
+    };
+
+    let Some(menu_man) = unsafe { CSMenuManImp::instance() }.ok() else {
+        return;
+    };
+
+    if param_repo.solo_param_holders[Magic::INDEX as usize].get_res_cap(0).is_none() {
+        return;
+    }
+    try_init_rendering();
+
+    let mut equipped_spells = Vec::with_capacity(14);
+    let data = &game_data_man.main_player_game_data.equipment.equip_magic_data;
+    unsafe {
+        if data.selected_slot != PREV_SELECTED_SPELL {
+            tracing::info!("Spell mismatch");
+            SpellWheelData::mutate(|data| data.do_render = !data.do_render);
+            let is_rendering_now = SpellWheelData::get(|data| data.do_render);
+            menu_man.disable_mouse_cursor = !is_rendering_now;
+            tracing::info!("Toggled rendering");
+        }
+        PREV_SELECTED_SPELL = data.selected_slot;
+    }
+    for (index, spell) in data.entries.iter().enumerate() {
+        let id = spell.param_id as u32;
+        if let Some(spell) = Spell::try_new(index, id, get_spell_name(id)) {
+            equipped_spells.push(spell);
+        }
     }
 
-    if equipped_spell_ids.is_empty() {
+    if equipped_spells.is_empty() {
         return;
     }
 
-    let spell_names = equipped_spell_ids.into_iter()
-        .filter_map(|spell_id| get_spell_name(spell_id))
-        .collect::<Vec<_>>();
-
-    SpellWheel::set_spell_names(spell_names);
+    SpellWheelData::mutate(|data| data.spells = equipped_spells);
 }
 
 fn get_dll_path() -> PathBuf {
