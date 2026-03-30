@@ -1,12 +1,13 @@
 use std::cmp::Ordering;
 use std::ops::Deref;
-use hudhook::{Hudhook, ImguiRenderLoop};
-use imgui::Ui;
+use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
+use imgui::{Context, Ui};
 use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
 use crate::{hmodule, set_selected_spell_index, Spell};
+use crate::icons::IconManager;
 
 static mut INIT: bool = false;
 pub fn try_init_rendering() {
@@ -106,7 +107,13 @@ fn angle_dist(a: f32, b: f32) -> f32 {
     dx * dx + dy * dy
 }
 
+const IMG_DIM: f32 = 100.0;
+
 impl ImguiRenderLoop for SpellWheel {
+    fn initialize<'a>(&'a mut self, _ctx: &mut Context, render_context: &'a mut dyn RenderContext) {
+        IconManager::load(render_context);
+    }
+
     fn render(&mut self, ui: &mut Ui) {
         let do_render = SpellWheelData::get(|data| data.do_render);
         let mut spells = SpellWheelData::get(|data| data.spells.clone());
@@ -167,11 +174,28 @@ impl ImguiRenderLoop for SpellWheel {
                     let y = cy + angle.sin() * radius;
 
                     let text_size = ui.calc_text_size(&spell.name);
-                    draw_list.add_text(
-                        [x - text_size[0] / 2.0, y - text_size[1] / 2.0],
-                        ui.style_color(imgui::StyleColor::Text),
-                        &spell.name,
-                    );
+                    if let Some(texture_id) = IconManager::get(spell.id) {
+                        let img_x = x;
+                        let img_y = y - text_size[1] / 2.0 - 50.0;
+                        let y_offset = IMG_DIM / 2.0 - text_size[1] / 2.0;
+
+                        draw_list.add_image(
+                            texture_id,
+                            [img_x - IMG_DIM / 2.0, img_y - IMG_DIM / 2.0 + y_offset],
+                            [img_x + IMG_DIM / 2.0, img_y + IMG_DIM / 2.0 + y_offset]
+                        ).build();
+                        draw_list.add_text(
+                            [x - text_size[0] / 2.0, y + y_offset],
+                            ui.style_color(imgui::StyleColor::Text),
+                            &spell.name,
+                        );
+                    } else {
+                        draw_list.add_text(
+                            [x - text_size[0] / 2.0, y - text_size[1] / 2.0],
+                            ui.style_color(imgui::StyleColor::Text),
+                            &spell.name,
+                        );
+                    }
                 }
 
                 if min_dist_squared == f32::INFINITY {

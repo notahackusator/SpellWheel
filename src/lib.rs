@@ -3,6 +3,7 @@
 mod rendering;
 mod debugging;
 mod keyboard;
+mod icons;
 
 use std::fs::File;
 use std::panic::catch_unwind;
@@ -163,6 +164,11 @@ fn get_mods_folder_path() -> PathBuf {
 fn get_log_path() -> PathBuf {
     get_mods_folder_path()
         .join("spellwheel.log")
+}
+
+fn get_spell_icons_path() -> PathBuf {
+    get_mods_folder_path()
+        .join("spell icons")
 }
 
 fn get_settings_path() -> PathBuf {

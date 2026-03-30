@@ -3,7 +3,7 @@ use eldenring::fd4::ParamHeaderMetadata;
 use crate::get_spell_name;
 
 #[allow(unused)]
-unsafe fn hacked_lookup_table_lol(metadata: &ParamHeaderMetadata) -> &[[u32; 2]] {
+pub unsafe fn hacked_lookup_table_lol(metadata: &ParamHeaderMetadata) -> &[[u32; 2]] {
     let stolen: [u32; 4] = *(metadata as *const _ as *const [u32; 4]);
     let file_size = stolen[0];
     let row_count = stolen[1];
@@ -20,7 +20,7 @@ unsafe fn hacked_lookup_table_lol(metadata: &ParamHeaderMetadata) -> &[[u32; 2]]
 }
 
 #[allow(unused)]
-unsafe fn log_all_spell_names_hopefully(param_repo: &mut SoloParamRepository) {
+pub unsafe fn log_all_spell_names_hopefully(param_repo: &mut SoloParamRepository) {
     let data = &param_repo.solo_param_holders[Magic::INDEX as usize].get_res_cap(0).unwrap()
         .param_res_cap.data;
     let lookup_table = hacked_lookup_table_lol(data.metadata());
@@ -30,7 +30,7 @@ unsafe fn log_all_spell_names_hopefully(param_repo: &mut SoloParamRepository) {
 }
 
 #[allow(unused)]
-unsafe fn log_all_spell_data_hopefully(param_repo: &mut SoloParamRepository) {
+pub unsafe fn log_all_spell_data_hopefully(param_repo: &mut SoloParamRepository) {
     let data = &param_repo.solo_param_holders[Magic::INDEX as usize].get_res_cap(0).unwrap()
         .param_res_cap.data;
     let lookup_table = hacked_lookup_table_lol(data.metadata());
