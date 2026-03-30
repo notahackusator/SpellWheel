@@ -72,9 +72,7 @@ impl SpellWheel {
         let dx = mx - sw / 2.0;
         let dy = my - sh / 2.0;
 
-        let angle = dy.atan2(dx);
-        let mouse_cos = angle.cos();
-        let mouse_sin = angle.sin();
+        let mouse_angle = dy.atan2(dx);
 
         let mut min_spell_idx = 0;
         let mut min_dist_squared = f32::INFINITY;
@@ -83,13 +81,7 @@ impl SpellWheel {
             let angle = (i as f32 / spells.len() as f32) * std::f32::consts::TAU
                 - std::f32::consts::FRAC_PI_2;
 
-            let spell_cos = angle.cos();
-            let spell_sin = angle.sin();
-
-            let dx = spell_cos - mouse_cos;
-            let dy = spell_sin - mouse_sin;
-
-            let dist_squared = dx * dx + dy * dy;
+            let dist_squared = angle_dist(mouse_angle, angle);
             if dist_squared < min_dist_squared {
                 min_dist_squared = dist_squared;
                 min_spell_idx = spell.index;
@@ -101,23 +93,35 @@ impl SpellWheel {
     }
 }
 
+fn angle_dist(a: f32, b: f32) -> f32 {
+    let a_cos = a.cos();
+    let a_sin = a.sin();
+
+    let b_cos = b.cos();
+    let b_sin = b.sin();
+
+    let dx = a_cos - b_cos;
+    let dy = a_sin - b_sin;
+
+    dx * dx + dy * dy
+}
+
 impl ImguiRenderLoop for SpellWheel {
     fn render(&mut self, ui: &mut Ui) {
         let do_render = SpellWheelData::get(|data| data.do_render);
-        let spells = match do_render {
-            true => SpellWheelData::get(|data| data.spells.clone()),
-            false => vec![], // because imgui is stupid, we need to draw something to the screen, otherwise it will crash
-        };
-
-        let [sw, sh] = ui.io().display_size;
+        let mut spells = SpellWheelData::get(|data| data.spells.clone());
 
         if self.did_render && !do_render {
             tracing::info!("Switching spells");
-            // we don't supply `spells` because `do_render` is `false` and therefore `spells`
-            // will be artificially empty.
-            Self::switch_spell(&SpellWheelData::get(|data| data.spells.clone()), ui);
+            Self::switch_spell(&spells, ui);
         }
 
+        // because imgui is stupid, we need to draw something to the screen, otherwise it will crash
+        if !do_render {
+            spells = vec![];
+        }
+
+        let [sw, sh] = ui.io().display_size;
         ui.window("Spell Wheel")
             .position([0.0, 0.0], imgui::Condition::Always)
             .size([sw, sh], imgui::Condition::Always)
@@ -135,13 +139,29 @@ impl ImguiRenderLoop for SpellWheel {
                 let [wx, wy] = ui.window_pos();
                 let [ww, wh] = ui.window_size();
 
+                let [mx, my] = ui.io().mouse_pos;
+
+                let dx = mx - sw / 2.0;
+                let dy = my - sh / 2.0;
+
+                let mouse_angle = dy.atan2(dx);
+
                 let cx = wx + ww / 2.0;
                 let cy = wy + wh / 2.0;
                 let radius = ww.min(wh) / 2.0 - sw.min(sh) / 4.0; // padding from edge
 
+                let mut min_spell_angle = 0.0;
+                let mut min_dist_squared = f32::INFINITY;
+
                 for (i, spell) in spells.iter().enumerate() {
                     let angle = (i as f32 / n as f32) * std::f32::consts::TAU
                         - std::f32::consts::FRAC_PI_2;
+
+                    let dist_squared = angle_dist(mouse_angle, angle);
+                    if dist_squared < min_dist_squared {
+                        min_dist_squared = dist_squared;
+                        min_spell_angle = angle;
+                    }
 
                     let x = cx + angle.cos() * radius;
                     let y = cy + angle.sin() * radius;
@@ -153,6 +173,15 @@ impl ImguiRenderLoop for SpellWheel {
                         &spell.name,
                     );
                 }
+
+                if min_dist_squared == f32::INFINITY {
+                    return;
+                }
+                draw_list.add_circle(
+                    [cx + min_spell_angle.cos() * radius, cy + min_spell_angle.sin() * radius],
+                    sw.min(sh) / 10.0,
+                    [1.0, 1.0, 1.0, 0.3]
+                ).filled(true).build();
             });
 
         self.did_render = do_render;
