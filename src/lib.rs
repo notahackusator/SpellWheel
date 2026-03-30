@@ -2,20 +2,24 @@
 
 mod rendering;
 mod debugging;
+mod keyboard;
 
 use std::fs::File;
 use std::panic::catch_unwind;
 use std::path::PathBuf;
 use std::ptr::NonNull;
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::OnceLock;
 use std::time::Duration;
 use eldenring::cs::{CSActionButtonManImp, CSEventManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository};
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
+use lazy_static::lazy_static;
 use pmod::fmg::MsgRepository;
 use tracing_subscriber::fmt;
 use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
+use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
 
 static HMODULE: OnceLock<usize> = OnceLock::new();
@@ -73,6 +77,14 @@ fn main_thread() {
     );
 }
 
+lazy_static!(
+    static ref SELECTED_SPELL_INDEX: AtomicI32 = AtomicI32::new(-1);
+);
+
+pub fn set_selected_spell_index(idx: i32) {
+    SELECTED_SPELL_INDEX.store(idx, Ordering::Relaxed);
+}
+
 #[derive(Clone)]
 struct Spell {
     index: usize,
@@ -86,7 +98,6 @@ impl Spell {
     }
 }
 
-static mut PREV_SELECTED_SPELL: i32 = 0;
 fn tick(_fd4: &FD4TaskData) {
     let Some(game_data_man) = unsafe { GameDataMan::instance() }.ok() else {
         return;
@@ -105,18 +116,14 @@ fn tick(_fd4: &FD4TaskData) {
     }
     try_init_rendering();
 
+    let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);
+    if selected_spell_index != -1 {
+        game_data_man.main_player_game_data.equipment.equip_magic_data.selected_slot = selected_spell_index;
+        SELECTED_SPELL_INDEX.store(-1, Ordering::Relaxed);
+    }
+
     let mut equipped_spells = Vec::with_capacity(14);
     let data = &game_data_man.main_player_game_data.equipment.equip_magic_data;
-    unsafe {
-        if data.selected_slot != PREV_SELECTED_SPELL {
-            tracing::info!("Spell mismatch");
-            SpellWheelData::mutate(|data| data.do_render = !data.do_render);
-            let is_rendering_now = SpellWheelData::get(|data| data.do_render);
-            menu_man.disable_mouse_cursor = !is_rendering_now;
-            tracing::info!("Toggled rendering");
-        }
-        PREV_SELECTED_SPELL = data.selected_slot;
-    }
     for (index, spell) in data.entries.iter().enumerate() {
         let id = spell.param_id as u32;
         if let Some(spell) = Spell::try_new(index, id, get_spell_name(id)) {
@@ -128,7 +135,11 @@ fn tick(_fd4: &FD4TaskData) {
         return;
     }
 
-    SpellWheelData::mutate(|data| data.spells = equipped_spells);
+    SpellWheelData::mutate(|data| {
+        data.spells = equipped_spells;
+        data.do_render = is_player_selecting_spell();
+    });
+    menu_man.disable_mouse_cursor = !is_player_selecting_spell();
 }
 
 fn get_dll_path() -> PathBuf {
@@ -152,6 +163,11 @@ fn get_mods_folder_path() -> PathBuf {
 fn get_log_path() -> PathBuf {
     get_mods_folder_path()
         .join("spellwheel.log")
+}
+
+fn get_settings_path() -> PathBuf {
+    get_mods_folder_path()
+        .join("spellwheel.toml")
 }
 
 fn get_spell_name(spell_id: u32) -> Option<String> {
