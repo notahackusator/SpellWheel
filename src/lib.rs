@@ -12,7 +12,7 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::OnceLock;
 use std::time::Duration;
-use eldenring::cs::{CSActionButtonManImp, CSEventManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository};
+use eldenring::cs::{CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository};
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
@@ -163,12 +163,20 @@ fn get_mods_folder_path() -> PathBuf {
 
 fn get_log_path() -> PathBuf {
     get_mods_folder_path()
+        .join("spellwheel")
         .join("spellwheel.log")
 }
 
 fn get_spell_icons_path() -> PathBuf {
     get_mods_folder_path()
-        .join("spell icons")
+        .join("spellwheel")
+        .join("icons")
+}
+
+fn get_font_path() -> PathBuf {
+    get_mods_folder_path()
+        .join("spellwheel")
+        .join("font.ttf")
 }
 
 fn get_settings_path() -> PathBuf {

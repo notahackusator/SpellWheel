@@ -1,4 +1,4 @@
-use eldenring::cs::{ActionButtonParam, Magic, SoloParam, SoloParamRepository};
+use eldenring::cs::{Magic, SoloParam, SoloParamRepository};
 use eldenring::fd4::ParamHeaderMetadata;
 use crate::get_spell_name;
 

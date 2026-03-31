@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::fs;
+use std::fs::File;
+use std::io::Read;
 use std::sync::Mutex;
 use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
 use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_TAB};
@@ -280,7 +281,9 @@ struct Settings {
 }
 
 fn get_settings_toml() -> Option<Settings> {
-	toml::from_str(&fs::read_to_string(get_settings_path()).ok()?).ok()
+	let mut toml_src = String::new();
+	File::create(get_settings_path()).ok()?.read_to_string(&mut toml_src).ok()?;
+	toml::from_str(&toml_src).ok()
 }
 
 lazy_static!(

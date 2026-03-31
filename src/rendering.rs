@@ -1,12 +1,12 @@
-use std::cmp::Ordering;
-use std::ops::Deref;
+use std::fs::read;
+use std::mem;
 use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
-use imgui::{Context, Ui};
+use imgui::{Context, DrawListMut, FontSource, TextureId, Ui};
 use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
-use crate::{hmodule, set_selected_spell_index, Spell};
+use crate::{get_font_path, get_spell_name, hmodule, set_selected_spell_index, Spell};
 use crate::icons::IconManager;
 
 static mut INIT: bool = false;
@@ -56,77 +56,232 @@ impl SpellWheelData {
 }
 
 pub struct SpellWheel {
-    did_render: bool
+    font: Option<usize>,
+    display_spells: Vec<DisplaySpell>,
+    did_render: bool,
 }
 
 impl SpellWheel {
     fn new() -> Self {
         Self {
-            did_render: false
+            font: None,
+            display_spells: vec![],
+            did_render: false,
         }
     }
 
-    fn switch_spell(spells: &[Spell], ui: &mut Ui) {
-        let [sw, sh] = ui.io().display_size;
-        let [mx, my] = ui.io().mouse_pos;
+    fn switch_spell(&self) {
+        if let Some(spell) = self.display_spells.iter()
+            .find(|spell| spell.is_highlighted) {
 
-        let dx = mx - sw / 2.0;
-        let dy = my - sh / 2.0;
-
-        let mouse_angle = dy.atan2(dx);
-
-        let mut min_spell_idx = 0;
-        let mut min_dist_squared = f32::INFINITY;
-
-        for (i, spell) in spells.iter().enumerate() {
-            let angle = (i as f32 / spells.len() as f32) * std::f32::consts::TAU
-                - std::f32::consts::FRAC_PI_2;
-
-            let dist_squared = angle_dist(mouse_angle, angle);
-            if dist_squared < min_dist_squared {
-                min_dist_squared = dist_squared;
-                min_spell_idx = spell.index;
-            }
+            tracing::info!("Selecting spell at index: {}", spell.index);
+            set_selected_spell_index(spell.index);
         }
-
-        tracing::info!("Selecting spell at index: {}", min_spell_idx);
-        set_selected_spell_index(min_spell_idx as i32);
     }
 }
 
-fn angle_dist(a: f32, b: f32) -> f32 {
-    let a_cos = a.cos();
-    let a_sin = a.sin();
+struct DisplaySpell {
+    index: i32,
+    texture_id: Option<TextureId>,
+    spell_name: String,
+    is_highlighted: bool,
+    pos: [f32; 2],
+    img_c1: [f32; 2],
+    img_c2: [f32; 2],
+    text_c1: [f32; 2],
+    text_c2: [f32; 2],
+    rect_c1: [f32; 2],
+    rect_c2: [f32; 2],
+    cos_sin: [f32; 2],
+}
 
-    let b_cos = b.cos();
-    let b_sin = b.sin();
+impl DisplaySpell {
+    fn dist(&self, cos: f32, sin: f32) -> f32 {
+        let dx = cos - self.cos_sin[0];
+        let dy = sin - self.cos_sin[1];
+        dx * dx + dy * dy
+    }
 
-    let dx = a_cos - b_cos;
-    let dy = a_sin - b_sin;
+    fn closest(spells: &[DisplaySpell], angle: f32) -> Option<usize> {
+        spells.first().map(|first| {
+            let [cos, sin] = [angle.cos(), angle.sin()];
 
-    dx * dx + dy * dy
+            let mut min = 0;
+            let mut min_dist = first.dist(cos, sin);
+            for i in 1..spells.len() {
+                let spell = &spells[i];
+                let dist = spell.dist(cos, sin);
+
+                if dist > min_dist {
+                    continue;
+                }
+
+                min = i;
+                min_dist = dist;
+            }
+
+            min
+        })
+    }
+
+    fn from_spells(ui: &Ui, spells: &[Spell]) -> Vec<DisplaySpell> {
+        let n = spells.len();
+        if n == 0 {
+            return vec![];
+        }
+
+        let [screen_w, screen_h] = ui.io().display_size;
+
+        let cx = screen_w / 2.0;
+        let cy = screen_h / 2.0;
+        let radius = screen_w.min(screen_h) / 4.0;
+
+        spells.iter().enumerate()
+            .map(|(i, spell)| {
+                let angle = (i as f32 / n as f32) * std::f32::consts::TAU
+                    - std::f32::consts::FRAC_PI_2;
+
+                let cos_sin @ [cos, sin] = [
+                    angle.cos(),
+                    angle.sin()
+                ];
+
+                let pos @ [x, y] = [
+                    cx + cos * radius,
+                    cy + sin * radius
+                ];
+
+                let [text_w, text_h] = ui.calc_text_size(&spell.name);
+
+                let img_c1 = [
+                    x - IMG_DIM / 2.0,
+                    y - (IMG_DIM + text_h) / 2.0
+                ];
+                let img_c2 = [
+                    img_c1[0] + IMG_DIM,
+                    img_c1[1] + IMG_DIM,
+                ];
+
+                let text_c1 = [
+                    x - text_w / 2.0,
+                    img_c2[1],
+                ];
+                let text_c2 = [
+                    text_c1[0] + text_w,
+                    text_c1[1] + text_h,
+                ];
+
+                let max_dx = (text_w / 2.0).max(IMG_DIM / 2.0) + 10.0;
+                let max_dy = (IMG_DIM + text_h) / 2.0 + 10.0;
+                let rect_c1 = [
+                    x - max_dx,
+                    y - max_dy
+                ];
+
+                let rect_c2 = [
+                    x + max_dx,
+                    y + max_dy
+                ];
+
+                let index = spell.index as i32;
+                let texture_id = IconManager::get(spell.id);
+                let spell_name = get_spell_name(spell.id).unwrap_or(format!("{}", spell.id));
+                let is_highlighted = false;
+
+                DisplaySpell {
+                    index,
+                    texture_id,
+                    spell_name,
+                    is_highlighted,
+                    pos,
+                    img_c1,
+                    img_c2,
+                    text_c1,
+                    text_c2,
+                    rect_c1,
+                    rect_c2,
+                    cos_sin,
+                }
+            }).collect()
+    }
+
+    fn draw_all(spells: &mut [DisplaySpell], ui: &Ui, draw_list: &DrawListMut) {
+        let [mx, my] = ui.io().mouse_pos;
+        let [sw, sh] = ui.io().display_size;
+        let dx = mx - sw / 2.0;
+        let dy = my - sh / 2.0;
+        let mouse_angle = dy.atan2(dx);
+
+        for spell in spells.iter_mut() {
+            spell.is_highlighted = false;
+        }
+        Self::closest(spells, mouse_angle).map(|idx| spells[idx].is_highlighted = true);
+
+        for spell in spells.iter() {
+            spell.draw(ui, draw_list);
+        }
+    }
+
+    fn draw(&self, ui: &Ui, draw_list: &DrawListMut) {
+        if self.is_highlighted {
+            draw_list.add_rect(
+                self.rect_c1,
+                self.rect_c2,
+                [1.0, 1.0, 1.0, 0.2]
+            ).filled(true).rounding(10.0).build();
+        }
+        match self.texture_id {
+            Some(texture_id) => draw_list.add_image(
+                texture_id,
+                self.img_c1,
+                self.img_c2
+            ).build(),
+            None => draw_list.add_rect(
+                self.img_c1,
+                self.img_c2,
+                [0.5, 0.5, 0.5, 1.0]
+            ).build()
+        }
+        draw_list.add_text(
+            self.text_c1,
+            ui.style_color(imgui::StyleColor::Text),
+            &self.spell_name,
+        );
+    }
 }
 
 const IMG_DIM: f32 = 100.0;
 
 impl ImguiRenderLoop for SpellWheel {
-    fn initialize<'a>(&'a mut self, _ctx: &mut Context, render_context: &'a mut dyn RenderContext) {
+    fn initialize<'a>(&'a mut self, ctx: &mut Context, render_context: &'a mut dyn RenderContext) {
+        tracing::info!("Loading font...");
+        self.font = read(get_font_path()).map(|font_data| unsafe {
+            mem::transmute(ctx.fonts().add_font(&[FontSource::TtfData {
+                data: &font_data,
+                size_pixels: 18.0,
+                config: None
+            }]))
+        }).ok();
+        tracing::info!("Font loaded");
         IconManager::load(render_context);
     }
 
     fn render(&mut self, ui: &mut Ui) {
+        let font = self.font.map(|font| unsafe { ui.push_font(mem::transmute(font)) });
         let do_render = SpellWheelData::get(|data| data.do_render);
         let mut spells = SpellWheelData::get(|data| data.spells.clone());
 
         if self.did_render && !do_render {
             tracing::info!("Switching spells");
-            Self::switch_spell(&spells, ui);
+            self.switch_spell();
         }
 
         // because imgui is stupid, we need to draw something to the screen, otherwise it will crash
         if !do_render {
             spells = vec![];
         }
+
+        self.display_spells = DisplaySpell::from_spells(&ui, &spells);
 
         let [sw, sh] = ui.io().display_size;
         ui.window("Spell Wheel")
@@ -143,71 +298,12 @@ impl ImguiRenderLoop for SpellWheel {
                 }
 
                 let draw_list = ui.get_window_draw_list();
-                let [wx, wy] = ui.window_pos();
-                let [ww, wh] = ui.window_size();
-
-                let [mx, my] = ui.io().mouse_pos;
-
-                let dx = mx - sw / 2.0;
-                let dy = my - sh / 2.0;
-
-                let mouse_angle = dy.atan2(dx);
-
-                let cx = wx + ww / 2.0;
-                let cy = wy + wh / 2.0;
-                let radius = ww.min(wh) / 2.0 - sw.min(sh) / 4.0; // padding from edge
-
-                let mut min_spell_angle = 0.0;
-                let mut min_dist_squared = f32::INFINITY;
-
-                for (i, spell) in spells.iter().enumerate() {
-                    let angle = (i as f32 / n as f32) * std::f32::consts::TAU
-                        - std::f32::consts::FRAC_PI_2;
-
-                    let dist_squared = angle_dist(mouse_angle, angle);
-                    if dist_squared < min_dist_squared {
-                        min_dist_squared = dist_squared;
-                        min_spell_angle = angle;
-                    }
-
-                    let x = cx + angle.cos() * radius;
-                    let y = cy + angle.sin() * radius;
-
-                    let text_size = ui.calc_text_size(&spell.name);
-                    if let Some(texture_id) = IconManager::get(spell.id) {
-                        let img_x = x;
-                        let img_y = y - text_size[1] / 2.0 - 50.0;
-                        let y_offset = IMG_DIM / 2.0 - text_size[1] / 2.0;
-
-                        draw_list.add_image(
-                            texture_id,
-                            [img_x - IMG_DIM / 2.0, img_y - IMG_DIM / 2.0 + y_offset],
-                            [img_x + IMG_DIM / 2.0, img_y + IMG_DIM / 2.0 + y_offset]
-                        ).build();
-                        draw_list.add_text(
-                            [x - text_size[0] / 2.0, y + y_offset],
-                            ui.style_color(imgui::StyleColor::Text),
-                            &spell.name,
-                        );
-                    } else {
-                        draw_list.add_text(
-                            [x - text_size[0] / 2.0, y - text_size[1] / 2.0],
-                            ui.style_color(imgui::StyleColor::Text),
-                            &spell.name,
-                        );
-                    }
-                }
-
-                if min_dist_squared == f32::INFINITY {
-                    return;
-                }
-                draw_list.add_circle(
-                    [cx + min_spell_angle.cos() * radius, cy + min_spell_angle.sin() * radius],
-                    sw.min(sh) / 10.0,
-                    [1.0, 1.0, 1.0, 0.3]
-                ).filled(true).build();
+                DisplaySpell::draw_all(&mut self.display_spells, &ui, &draw_list);
             });
 
         self.did_render = do_render;
+        if let Some(font) = font {
+            font.pop();
+        }
     }
 }
