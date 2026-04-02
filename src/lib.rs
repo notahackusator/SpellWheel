@@ -4,6 +4,7 @@ mod rendering;
 mod debugging;
 mod keyboard;
 mod icons;
+mod settings;
 
 use std::fs::File;
 use std::panic::catch_unwind;
@@ -20,6 +21,7 @@ use lazy_static::lazy_static;
 use pmod::fmg::MsgRepository;
 use tracing_subscriber::fmt;
 use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
+use crate::debugging::{is_debugging, run_every};
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
 
@@ -86,7 +88,7 @@ pub fn set_selected_spell_index(idx: i32) {
     SELECTED_SPELL_INDEX.store(idx, Ordering::Relaxed);
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 struct Spell {
     index: usize,
     id: u32,
@@ -100,6 +102,11 @@ impl Spell {
 }
 
 fn tick(_fd4: &FD4TaskData) {
+    if is_debugging() {
+        run_every!("tick info" every Duration::from_secs(1) => {
+            tracing::info!("In tick function");
+        });
+    }
     let Some(game_data_man) = unsafe { GameDataMan::instance() }.ok() else {
         return;
     };
@@ -130,6 +137,11 @@ fn tick(_fd4: &FD4TaskData) {
         if let Some(spell) = Spell::try_new(index, id, get_spell_name(id)) {
             equipped_spells.push(spell);
         }
+    }
+    if is_debugging() {
+        run_every!("spell info" every Duration::from_secs(1) => {
+            tracing::info!("Equipped spells: {equipped_spells:?}");
+        });
     }
 
     if equipped_spells.is_empty() {

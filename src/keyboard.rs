@@ -2,11 +2,14 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::sync::Mutex;
+use std::time::Duration;
 use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
 use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_TAB};
 use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use lazy_static::lazy_static;
+use crate::debugging::{is_debugging, run_every};
 use crate::get_settings_path;
+use crate::settings::Settings;
 
 lazy_static!(
 	static ref KEYS: HashMap<&'static str, u16> = HashMap::from_iter([
@@ -269,30 +272,21 @@ fn is_game_focused() -> bool {
     }
 }
 
+fn is_key_pressed(vk: i32) -> bool {
+	unsafe {
+		GetAsyncKeyState(vk) & 0x8000u16 as i16 != 0
+	}
+}
+
 pub fn is_pressed(vk: i32) -> bool {
-    unsafe {
-        is_game_focused() && (GetAsyncKeyState(vk) & 0x8000u16 as i16 != 0)
-    }
-}
-
-#[derive(serde::Deserialize)]
-struct Settings {
-	key: String,
-}
-
-fn get_settings_toml() -> Option<Settings> {
-	let mut toml_src = String::new();
-	File::create(get_settings_path()).ok()?.read_to_string(&mut toml_src).ok()?;
-	toml::from_str(&toml_src).ok()
+	is_game_focused() && is_key_pressed(vk)
 }
 
 lazy_static!(
 	static ref PREV_KEY: Mutex<Option<String>> = Mutex::new(None);
 );
 pub fn is_player_selecting_spell() -> bool {
-	let settings = get_settings_toml().unwrap_or(Settings {
-		key: "TAB".to_string()
-	});
+	let settings = Settings::open_toml().unwrap_or(Settings::default());
 	let mut prev_key_mutex = PREV_KEY.lock().unwrap();
 	let key = settings.key;
 	let key_changed = match prev_key_mutex.as_ref() {
@@ -304,10 +298,14 @@ pub fn is_player_selecting_spell() -> bool {
 		tracing::error!("Invalid key: {key}");
 	}
 
-    let out = is_pressed(
-		*KEYS.get(key.as_str())
-			.unwrap_or(&VK_TAB.0) as i32
-	);
+	let key_code = *KEYS.get(key.as_str())
+		.unwrap_or(&VK_TAB.0) as i32;
+    let out = is_pressed(key_code);
+	if is_debugging() {
+		run_every!("key valid / pressed" every Duration::from_secs(1) => {
+			tracing::info!("{key}: code = {key_code}, valid? = {key_valid}, pressed? = {}, focused? = {}", is_key_pressed(key_code), is_game_focused())
+		});
+	}
 	*prev_key_mutex = Some(key);
 	out
 }

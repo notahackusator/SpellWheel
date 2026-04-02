@@ -1,6 +1,11 @@
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 use eldenring::cs::{Magic, SoloParam, SoloParamRepository};
 use eldenring::fd4::ParamHeaderMetadata;
+use lazy_static::lazy_static;
 use crate::get_spell_name;
+use crate::settings::Settings;
 
 #[allow(unused)]
 pub unsafe fn hacked_lookup_table_lol(metadata: &ParamHeaderMetadata) -> &[[u32; 2]] {
@@ -40,4 +45,53 @@ pub unsafe fn log_all_spell_data_hopefully(param_repo: &mut SoloParamRepository)
         tracing::info!("{param_id}: name={:?} icon_id={} sort_id={}",
             get_spell_name(param_id), spell.icon_id(), spell.sort_id());
     }
+}
+
+pub struct RunEveryRegistry {
+    code: HashMap<&'static str, (Duration, Instant)>
+}
+
+lazy_static!(
+    static ref RUN_EVERY_REGISTRY: Arc<RwLock<RunEveryRegistry>> = Arc::new(RwLock::new(RunEveryRegistry::new()));
+);
+
+impl RunEveryRegistry {
+    fn new() -> Self {
+        Self {
+            code: HashMap::new(),
+        }
+    }
+
+    pub fn can_run(name: &'static str, every: Duration) -> bool {
+        RUN_EVERY_REGISTRY.write().unwrap().can_run_inner(name, every)
+    }
+
+    fn can_run_inner(&mut self, name: &'static str, every: Duration) -> bool {
+        match self.code.get_mut(name) {
+            Some((duration, start)) => {
+                let now = Instant::now();
+                if now - *start >= *duration {
+                    *start = Instant::now();
+                    return true;
+                }
+                false
+            }
+            None => {
+                self.code.insert(name, (every, Instant::now()));
+                true
+            }
+        }
+    }
+}
+
+macro_rules! run_every {
+    ($some_unique_string:literal every $duration:expr => $code:block) => {
+        if crate::debugging::RunEveryRegistry::can_run($some_unique_string, $duration) $code
+    };
+}
+
+pub(crate) use run_every;
+
+pub fn is_debugging() -> bool {
+    Settings::open_toml().unwrap_or(Settings::default()).debugging
 }
