@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 use eldenring::cs::{Magic, SoloParam, SoloParamRepository};
 use eldenring::fd4::ParamHeaderMetadata;
@@ -63,7 +63,8 @@ impl RunEveryRegistry {
     }
 
     pub fn can_run(name: &'static str, every: Duration) -> bool {
-        RUN_EVERY_REGISTRY.write().unwrap().can_run_inner(name, every)
+        RUN_EVERY_REGISTRY.write().expect("RUN_EVERY_REGISTRY owner panicked")
+            .can_run_inner(name, every)
     }
 
     fn can_run_inner(&mut self, name: &'static str, every: Duration) -> bool {
@@ -91,6 +92,14 @@ macro_rules! run_every {
 }
 
 pub(crate) use run_every;
+
+macro_rules! run_once {
+    ($some_unique_string:literal => $code:block) => {
+        run_every!($some_unique_string every core::time::Duration::from_secs(u64::MAX) => $code)
+    };
+}
+
+pub(crate) use run_once;
 
 pub fn is_debugging() -> bool {
     Settings::open_toml().unwrap_or(Settings::default()).debugging

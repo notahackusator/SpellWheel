@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::Read;
 use std::sync::Mutex;
 use std::time::Duration;
 use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
@@ -8,7 +6,6 @@ use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_
 use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use lazy_static::lazy_static;
 use crate::debugging::{is_debugging, run_every};
-use crate::get_settings_path;
 use crate::settings::Settings;
 
 lazy_static!(

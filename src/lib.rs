@@ -21,9 +21,10 @@ use lazy_static::lazy_static;
 use pmod::fmg::MsgRepository;
 use tracing_subscriber::fmt;
 use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
-use crate::debugging::{is_debugging, run_every};
+use crate::debugging::{is_debugging, run_every, run_once};
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
+use crate::settings::Settings;
 
 static HMODULE: OnceLock<usize> = OnceLock::new();
 
@@ -68,15 +69,11 @@ fn start() {
     wait_for_system_init(&Program::current(), Duration::MAX)
         .expect("Could not await system init.");
 
-    main_thread();
-}
-
-fn main_thread() {
-    tracing::info!("Main function called");
+    tracing::info!("Init complete");
     let tasks = unsafe { CSTaskImp::instance() }.unwrap();
     tasks.run_recurring(
-        tick,
-        CSTaskGroupIndex::GameMan
+        tick_guard,
+        CSTaskGroupIndex::MenuMan
     );
 }
 
@@ -101,29 +98,56 @@ impl Spell {
     }
 }
 
+fn tick_guard(fd4: &FD4TaskData) {
+    let tick_fn = catch_unwind(|| {
+        tick(fd4);
+    });
+    if tick_fn.is_err() {
+        tracing::error!("Encountered an error:\n{}", panic_message::panic_message(&tick_fn.unwrap_err()));
+    }
+}
+
 fn tick(_fd4: &FD4TaskData) {
+    run_once!("tick function entry" => {
+        tracing::info!("Entered tick function");
+    });
     if is_debugging() {
         run_every!("tick info" every Duration::from_secs(1) => {
+            tracing::info!("Check 1");
             tracing::info!("In tick function");
         });
     }
     let Some(game_data_man) = unsafe { GameDataMan::instance() }.ok() else {
+        tracing::error!("{:?}", unsafe { GameDataMan::instance() }.err());
         return;
     };
+    run_once!("param repo check" => {
+        tracing::info!("Checking param repo");
+    });
 
     let Some(param_repo) = unsafe { SoloParamRepository::instance() }.ok() else {
         return;
     };
+    run_once!("menu man check" => {
+        tracing::info!("Checking menu man");
+    });
 
     let Some(menu_man) = unsafe { CSMenuManImp::instance() }.ok() else {
         return;
     };
+    run_once!("param repo magic check" => {
+        tracing::info!("Checking param repo magic");
+    });
 
     if param_repo.solo_param_holders[Magic::INDEX as usize].get_res_cap(0).is_none() {
         return;
     }
     try_init_rendering();
 
+
+    run_once!("init rendering check" => {
+        tracing::info!("Passed init rendering");
+    });
     let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);
     if selected_spell_index != -1 {
         game_data_man.main_player_game_data.equipment.equip_magic_data.selected_slot = selected_spell_index;
@@ -140,6 +164,7 @@ fn tick(_fd4: &FD4TaskData) {
     }
     if is_debugging() {
         run_every!("spell info" every Duration::from_secs(1) => {
+            tracing::info!("Check 2");
             tracing::info!("Equipped spells: {equipped_spells:?}");
         });
     }

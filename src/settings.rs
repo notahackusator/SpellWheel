@@ -1,6 +1,5 @@
-use std::fs::File;
-use std::io::Read;
 use crate::get_settings_path;
+use std::fs::read_to_string;
 
 #[derive(serde::Deserialize)]
 pub struct Settings {
@@ -19,8 +18,6 @@ impl Default for Settings {
 
 impl Settings {
     pub fn open_toml() -> Option<Self> {
-        let mut toml_src = String::new();
-        File::open(get_settings_path()).ok()?.read_to_string(&mut toml_src).ok()?;
-        toml::from_str(&toml_src).ok()
+        toml::from_str(&read_to_string(get_settings_path()).ok()?).ok()
     }
 }

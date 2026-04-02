@@ -11,10 +11,10 @@ use crate::icons::IconManager;
 
 static mut INIT: bool = false;
 pub fn try_init_rendering() {
-    if unsafe { INIT } {
-        return;
-    }
     unsafe {
+        if INIT {
+            return;
+        }
         INIT = true;
     }
     tracing::info!("Init rendering called");
