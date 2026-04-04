@@ -6,10 +6,10 @@ use hudhook::RenderContext;
 use imgui::TextureId;
 use lazy_static::lazy_static;
 use rayon::iter::IntoParallelIterator;
-use crate::get_spell_icons_path;
+use crate::paths;
 
 lazy_static!(
-    static ref IMAGE_MANAGER: OnceLock<IconManager> = OnceLock::new();
+    static ref ICON_MANAGER: OnceLock<IconManager> = OnceLock::new();
 );
 
 #[derive(Debug)]
@@ -19,7 +19,7 @@ pub struct IconManager {
 
 impl IconManager {
     pub fn get(spell_id: u32) -> Option<TextureId> {
-        IMAGE_MANAGER.get()?.get_inner(spell_id)
+        ICON_MANAGER.get()?.get_inner(spell_id)
     }
     
     fn get_inner(&self, spell_id: u32) -> Option<TextureId> {
@@ -28,14 +28,14 @@ impl IconManager {
     
     pub fn load(render_context: &mut dyn RenderContext) {
         tracing::info!("Loading spell icons...");
-        IMAGE_MANAGER.set(Self::load_inner(render_context).expect("Could not load ImageManager"))
+        ICON_MANAGER.set(Self::load_inner(render_context).expect("Could not load ImageManager"))
             .expect("Could not load image manager");
     }
     
     fn load_inner(render_context: &mut dyn RenderContext) -> Result<Self, String> {
         // get the files
         tracing::info!("  Files found");
-        let files = fs::read_dir(get_spell_icons_path()).map_err(|err| err.to_string())?
+        let files = fs::read_dir(paths::spell_icons()).map_err(|err| err.to_string())?
             .filter_map(|x| x.ok())
             .collect::<Vec<_>>();
         

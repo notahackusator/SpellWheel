@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
-use crate::{get_font_path, get_spell_name, hmodule, set_selected_spell_index, Spell};
+use crate::{hmodule, paths, set_selected_spell_index, Spell};
 use crate::icons::IconManager;
 
 static mut INIT: bool = false;
@@ -151,7 +151,7 @@ impl DisplaySpell {
                     cy + sin * radius
                 ];
 
-                let [text_w, text_h] = ui.calc_text_size(&spell.name);
+                let [text_w, text_h] = ui.calc_text_size(spell.name());
 
                 let img_c1 = [
                     x - IMG_DIM / 2.0,
@@ -183,9 +183,9 @@ impl DisplaySpell {
                     y + max_dy
                 ];
 
-                let index = spell.index as i32;
-                let texture_id = IconManager::get(spell.id);
-                let spell_name = get_spell_name(spell.id).unwrap_or(format!("{}", spell.id));
+                let index = spell.index();
+                let texture_id = IconManager::get(spell.id());
+                let spell_name = spell.name().to_string();
                 let is_highlighted = false;
 
                 DisplaySpell {
@@ -255,7 +255,7 @@ const IMG_DIM: f32 = 100.0;
 impl ImguiRenderLoop for SpellWheel {
     fn initialize<'a>(&'a mut self, ctx: &mut Context, render_context: &'a mut dyn RenderContext) {
         tracing::info!("Loading font...");
-        self.font = read(get_font_path()).map(|font_data| unsafe {
+        self.font = read(paths::font()).map(|font_data| unsafe {
             mem::transmute(ctx.fonts().add_font(&[FontSource::TtfData {
                 data: &font_data,
                 size_pixels: 18.0,

@@ -21,5 +21,6 @@ tracing-subscriber = "0.3.23"
 pmod = { git = "https://github.com/Dasaav-dsv/pmod" }
 lazy_static = "1.5.0"
 panic-message = "0.3.0"
+cached = "0.59.0"
 toml = "0.9.8"
 serde = { version = "1.0.228", features = ["serde_derive"] }

@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use eldenring::cs::{Magic, SoloParam, SoloParamRepository};
 use eldenring::fd4::ParamHeaderMetadata;
 use lazy_static::lazy_static;
-use crate::get_spell_name;
 use crate::settings::Settings;
+use crate::spells::Spell;
 
 #[allow(unused)]
 pub unsafe fn hacked_lookup_table_lol(metadata: &ParamHeaderMetadata) -> &[[u32; 2]] {
@@ -30,7 +30,7 @@ pub unsafe fn log_all_spell_names_hopefully(param_repo: &mut SoloParamRepository
         .param_res_cap.data;
     let lookup_table = hacked_lookup_table_lol(data.metadata());
     for &[param_id, _] in lookup_table.iter() {
-        tracing::info!("{param_id}={:?}", get_spell_name(param_id));
+        tracing::info!("{param_id}={:?}", Spell::get_name(param_id));
     }
 }
 
@@ -43,7 +43,7 @@ pub unsafe fn log_all_spell_data_hopefully(param_repo: &mut SoloParamRepository)
         let spell = param_repo.get::<Magic>(param_id)
             .expect(&format!("Could not get spell id {param_id}"));
         tracing::info!("{param_id}: name={:?} icon_id={} sort_id={}",
-            get_spell_name(param_id), spell.icon_id(), spell.sort_id());
+            Spell::get_name(param_id), spell.icon_id(), spell.sort_id());
     }
 }
 
