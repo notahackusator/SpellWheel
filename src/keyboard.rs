@@ -283,7 +283,7 @@ lazy_static!(
 	static ref PREV_KEY: Mutex<Option<String>> = Mutex::new(None);
 );
 pub fn is_player_selecting_spell() -> bool {
-	let settings = Settings::open_toml().unwrap_or(Settings::default());
+	let settings = Settings::read_or_default();
 	let mut prev_key_mutex = PREV_KEY.lock().unwrap();
 	let key = settings.key;
 	let key_changed = match prev_key_mutex.as_ref() {

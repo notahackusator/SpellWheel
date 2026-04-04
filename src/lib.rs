@@ -108,46 +108,22 @@ fn tick_guard(fd4: &FD4TaskData) {
 }
 
 fn tick(_fd4: &FD4TaskData) {
-    run_once!("tick function entry" => {
-        tracing::info!("Entered tick function");
-    });
-    if is_debugging() {
-        run_every!("tick info" every Duration::from_secs(1) => {
-            tracing::info!("Check 1");
-            tracing::info!("In tick function");
-        });
-    }
     let Some(game_data_man) = unsafe { GameDataMan::instance() }.ok() else {
-        tracing::error!("{:?}", unsafe { GameDataMan::instance() }.err());
         return;
     };
-    run_once!("param repo check" => {
-        tracing::info!("Checking param repo");
-    });
 
     let Some(param_repo) = unsafe { SoloParamRepository::instance() }.ok() else {
         return;
     };
-    run_once!("menu man check" => {
-        tracing::info!("Checking menu man");
-    });
-
     let Some(menu_man) = unsafe { CSMenuManImp::instance() }.ok() else {
         return;
     };
-    run_once!("param repo magic check" => {
-        tracing::info!("Checking param repo magic");
-    });
 
     if param_repo.solo_param_holders[Magic::INDEX as usize].get_res_cap(0).is_none() {
         return;
     }
     try_init_rendering();
 
-
-    run_once!("init rendering check" => {
-        tracing::info!("Passed init rendering");
-    });
     let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);
     if selected_spell_index != -1 {
         game_data_man.main_player_game_data.equipment.equip_magic_data.selected_slot = selected_spell_index;
@@ -161,12 +137,6 @@ fn tick(_fd4: &FD4TaskData) {
         if let Some(spell) = Spell::try_new(index, id, get_spell_name(id)) {
             equipped_spells.push(spell);
         }
-    }
-    if is_debugging() {
-        run_every!("spell info" every Duration::from_secs(1) => {
-            tracing::info!("Check 2");
-            tracing::info!("Equipped spells: {equipped_spells:?}");
-        });
     }
 
     if equipped_spells.is_empty() {

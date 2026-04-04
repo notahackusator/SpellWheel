@@ -102,5 +102,5 @@ macro_rules! run_once {
 pub(crate) use run_once;
 
 pub fn is_debugging() -> bool {
-    Settings::open_toml().unwrap_or(Settings::default()).debugging
+    Settings::read_or_default().debugging
 }
