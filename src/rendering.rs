@@ -4,7 +4,6 @@ use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
 use imgui::{Context, DrawListMut, FontSource, TextureId, Ui};
 use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicU32, Ordering};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
 use crate::{hmodule, paths, set_selected_spell_index, Spell};
@@ -53,31 +52,6 @@ impl SpellWheelData {
 
     pub fn get<F: FnOnce(&Self) -> T, T>(f: F) -> T {
         f(&*SPELL_WHEEL_DATA.read().unwrap())
-    }
-}
-
-pub struct SpellWheel {
-    font: Option<usize>,
-    display_spells: Vec<DisplaySpell>,
-    did_render: bool,
-}
-
-impl SpellWheel {
-    fn new() -> Self {
-        Self {
-            font: None,
-            display_spells: vec![],
-            did_render: false,
-        }
-    }
-
-    fn switch_spell(&self) {
-        if let Some(spell) = self.display_spells.iter()
-            .find(|spell| spell.is_highlighted) {
-
-            tracing::info!("Selecting spell at index: {}", spell.index);
-            set_selected_spell_index(spell.index);
-        }
     }
 }
 
@@ -137,7 +111,7 @@ impl DisplaySpell {
         let cy = screen_h / 2.0;
         let radius = screen_w.min(screen_h) / 4.0;
 
-        let img_dim = img_dim();
+        let img_dim = img_dim(ui);
 
         spells.iter().enumerate()
             .map(|(i, spell)| {
@@ -253,37 +227,74 @@ impl DisplaySpell {
     }
 }
 
-const IMG_DIM: AtomicU32 = AtomicU32::new(100f32.to_bits());
-fn img_dim() -> f32 {
-    f32::from_bits(IMG_DIM.load(Ordering::Relaxed))
+fn img_dim(ui: &Ui) -> f32 {
+    let [ww, wh] = ui.io().display_size;
+    ww.min(wh) * IMG_DIM_MULTIPLIER
 }
 
-fn set_img_dim(img_dim: f32) {
-    IMG_DIM.store(img_dim.to_bits(), Ordering::Relaxed)
-}
-
-const FONT_HEIGHT_MULTIPLIER: f32 = 0.025;
 const IMG_DIM_MULTIPLIER: f32 = 0.15;
+
+pub struct SpellWheel {
+    font: Option<usize>,
+    display_spells: Vec<DisplaySpell>,
+    did_render: bool,
+    prev_size: Option<[f32; 2]>,
+}
+
+impl SpellWheel {
+    fn new() -> Self {
+        Self {
+            font: None,
+            display_spells: vec![],
+            did_render: false,
+            prev_size: None,
+        }
+    }
+
+    fn switch_spell(&self) {
+        if let Some(spell) = self.display_spells.iter()
+            .find(|spell| spell.is_highlighted) {
+
+            tracing::info!("Selecting spell at index: {}", spell.index);
+            set_selected_spell_index(spell.index);
+        }
+    }
+}
+
+const DEFAULT_FONT_HEIGHT: f32 = 54.0;
+const DEFAULT_SCREEN_MIN: f32 = 2160.0;
+
+impl SpellWheel {
+    fn try_resize_font(&mut self, ctx: &mut Context) {
+        let window_size @ [ww, wh] = ctx.io().display_size;
+        let global_scale = match self.prev_size {
+            Some(prev_size) if prev_size == window_size => ctx.io().font_global_scale,
+            _ => ww.min(wh) / DEFAULT_SCREEN_MIN
+        };
+        ctx.io_mut().font_global_scale = global_scale;
+        self.prev_size = Some(window_size);
+    }
+}
 
 impl ImguiRenderLoop for SpellWheel {
     fn initialize<'a>(&'a mut self, ctx: &mut Context, render_context: &'a mut dyn RenderContext) {
         tracing::info!("Initializing spell wheel UI");
-
-        let [ww, wh] = ctx.io().display_size;
-        let font_height = ww.min(wh) * FONT_HEIGHT_MULTIPLIER;
-        set_img_dim(ww.min(wh) * IMG_DIM_MULTIPLIER);
 
         tracing::info!("Loading font...");
 
         self.font = read(paths::font()).map(|font_data| unsafe {
             mem::transmute(ctx.fonts().add_font(&[FontSource::TtfData {
                 data: &font_data,
-                size_pixels: font_height,
+                size_pixels: DEFAULT_FONT_HEIGHT,
                 config: None
             }]))
         }).ok();
         tracing::info!("Font loaded");
         IconManager::load(render_context);
+    }
+
+    fn before_render<'a>(&'a mut self, ctx: &mut Context, _render_context: &'a mut dyn RenderContext) {
+        self.try_resize_font(ctx);
     }
 
     fn render(&mut self, ui: &mut Ui) {
