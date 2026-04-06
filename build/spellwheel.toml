@@ -1,1 +1,8 @@
+# The key used to open the spell wheel. This uses the Windows Virtual Key Codes, so the names may not be what you expect.
+# You can visit this website for the full list of VK codes:
+# https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+# Note that you should not prefix the key with "VK_". So if you want Tab, write "TAB". If you want Alt, write "MENU".
 key = "TAB"
+
+# If you're using Seamless Co-op and the game crashes when starting, try setting this number to something like 5. This will delay the mod's initialization and possibly prevent the crash.
+timing_offset = 0

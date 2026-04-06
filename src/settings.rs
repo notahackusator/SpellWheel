@@ -11,6 +11,8 @@ pub struct Settings {
     pub key: String,
     #[serde(default = "default_debugging")]
     pub debugging: bool,
+    #[serde(default = "default_timing_offset")]
+    pub timing_offset: f32,
 }
 
 pub fn default_key() -> String {
@@ -21,11 +23,16 @@ pub fn default_debugging() -> bool {
     false
 }
 
+pub fn default_timing_offset() -> f32 {
+    0.0
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Settings {
             key: "TAB".to_string(),
             debugging: false,
+            timing_offset: 0.0,
         }
     }
 }

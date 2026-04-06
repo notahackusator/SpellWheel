@@ -95,7 +95,7 @@ pub(crate) use run_every;
 
 macro_rules! run_once {
     ($some_unique_string:literal => $code:block) => {
-        run_every!($some_unique_string every core::time::Duration::from_secs(u64::MAX) => $code)
+        crate::debugging::run_every!($some_unique_string every core::time::Duration::from_secs(u64::MAX) => $code)
     };
 }
 

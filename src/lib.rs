@@ -19,8 +19,10 @@ use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use lazy_static::lazy_static;
 use tracing_subscriber::fmt;
+use crate::debugging::run_once;
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
+use crate::settings::Settings;
 use crate::spells::Spell;
 
 static HMODULE: OnceLock<usize> = OnceLock::new();
@@ -39,7 +41,15 @@ pub unsafe extern "C" fn DllMain(hmodule: usize, reason: u32) -> bool {
         return true;
     }
 
+    std::thread::spawn(move || init(hmodule));
+
+    true
+}
+
+fn init(hmodule: usize) {
     HMODULE.set(hmodule).expect("Could not set HMODULE");
+    // Fix for Seamless crash
+    std::thread::sleep(Duration::from_secs_f32(Settings::read_or_default().timing_offset));
 
     fmt().with_writer(File::create(paths::log()).expect("Could not create log file"))
         .with_ansi(false)
@@ -49,16 +59,13 @@ pub unsafe extern "C" fn DllMain(hmodule: usize, reason: u32) -> bool {
         let msg = info.to_string();
         tracing::error!("Encountered an error:\n{msg}");
     }));
-    std::thread::spawn(|| {
-        let code = catch_unwind(|| {
-            start();
-        });
-        if code.is_err() {
-            tracing::error!("Encountered an error:\n{}", panic_message::panic_message(&code.unwrap_err()));
-        }
-    });
 
-    true
+    let code = catch_unwind(|| {
+        start();
+    });
+    if code.is_err() {
+        tracing::error!("Encountered an error:\n{}", panic_message::panic_message(&code.unwrap_err()));
+    }
 }
 
 fn start() {
@@ -93,6 +100,9 @@ fn tick_guard(fd4: &FD4TaskData) {
 }
 
 fn tick(_fd4: &FD4TaskData) {
+    run_once!("entered tick function" => {
+        tracing::info!("Entered tick function");
+    });
     let Some(game_data_man) = unsafe { GameDataMan::instance() }.ok() else {
         return;
     };
@@ -100,6 +110,7 @@ fn tick(_fd4: &FD4TaskData) {
     let Some(param_repo) = unsafe { SoloParamRepository::instance() }.ok() else {
         return;
     };
+
     let Some(menu_man) = unsafe { CSMenuManImp::instance() }.ok() else {
         return;
     };
@@ -107,6 +118,9 @@ fn tick(_fd4: &FD4TaskData) {
     if param_repo.solo_param_holders[Magic::INDEX as usize].get_res_cap(0).is_none() {
         return;
     }
+    run_once!("passed all checks" => {
+        tracing::info!("Passed all checks");
+    });
     try_init_rendering();
 
     let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);
