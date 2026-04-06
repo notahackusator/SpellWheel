@@ -4,5 +4,6 @@
 # Note that you should not prefix the key with "VK_". So if you want Tab, write "TAB". If you want Alt, write "MENU".
 key = "TAB"
 
-# If you're using Seamless Co-op and the game crashes when starting, try setting this number to something like 5. This will delay the mod's initialization and possibly prevent the crash.
+# The number of seconds to delay the mod's initialization.
+# If you're using Seamless Co-op and the game crashes when starting, try setting this number to something like 5 or higher. This will possibly prevent the crash.
 timing_offset = 0

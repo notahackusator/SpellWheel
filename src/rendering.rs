@@ -4,6 +4,7 @@ use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
 use imgui::{Context, DrawListMut, FontSource, TextureId, Ui};
 use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicU32, Ordering};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
 use crate::{hmodule, paths, set_selected_spell_index, Spell};
@@ -136,6 +137,8 @@ impl DisplaySpell {
         let cy = screen_h / 2.0;
         let radius = screen_w.min(screen_h) / 4.0;
 
+        let img_dim = img_dim();
+
         spells.iter().enumerate()
             .map(|(i, spell)| {
                 let angle = (i as f32 / n as f32) * std::f32::consts::TAU
@@ -154,12 +157,12 @@ impl DisplaySpell {
                 let [text_w, text_h] = ui.calc_text_size(spell.name());
 
                 let img_c1 = [
-                    x - IMG_DIM / 2.0,
-                    y - (IMG_DIM + text_h) / 2.0
+                    x - img_dim / 2.0,
+                    y - (img_dim + text_h) / 2.0
                 ];
                 let img_c2 = [
-                    img_c1[0] + IMG_DIM,
-                    img_c1[1] + IMG_DIM,
+                    img_c1[0] + img_dim,
+                    img_c1[1] + img_dim,
                 ];
 
                 let text_c1 = [
@@ -171,8 +174,8 @@ impl DisplaySpell {
                     text_c1[1] + text_h,
                 ];
 
-                let max_dx = (text_w / 2.0).max(IMG_DIM / 2.0) + 10.0;
-                let max_dy = (IMG_DIM + text_h) / 2.0 + 10.0;
+                let max_dx = (text_w / 2.0).max(img_dim / 2.0) + 10.0;
+                let max_dy = (img_dim + text_h) / 2.0 + 10.0;
                 let rect_c1 = [
                     x - max_dx,
                     y - max_dy
@@ -250,15 +253,32 @@ impl DisplaySpell {
     }
 }
 
-const IMG_DIM: f32 = 100.0;
+const IMG_DIM: AtomicU32 = AtomicU32::new(100f32.to_bits());
+fn img_dim() -> f32 {
+    f32::from_bits(IMG_DIM.load(Ordering::Relaxed))
+}
+
+fn set_img_dim(img_dim: f32) {
+    IMG_DIM.store(img_dim.to_bits(), Ordering::Relaxed)
+}
+
+const FONT_HEIGHT_MULTIPLIER: f32 = 0.025;
+const IMG_DIM_MULTIPLIER: f32 = 0.15;
 
 impl ImguiRenderLoop for SpellWheel {
     fn initialize<'a>(&'a mut self, ctx: &mut Context, render_context: &'a mut dyn RenderContext) {
+        tracing::info!("Initializing spell wheel UI");
+
+        let [ww, wh] = ctx.io().display_size;
+        let font_height = ww.min(wh) * FONT_HEIGHT_MULTIPLIER;
+        set_img_dim(ww.min(wh) * IMG_DIM_MULTIPLIER);
+
         tracing::info!("Loading font...");
+
         self.font = read(paths::font()).map(|font_data| unsafe {
             mem::transmute(ctx.fonts().add_font(&[FontSource::TtfData {
                 data: &font_data,
-                size_pixels: 18.0,
+                size_pixels: font_height,
                 config: None
             }]))
         }).ok();
