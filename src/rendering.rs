@@ -6,8 +6,9 @@ use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
-use crate::{hmodule, paths, set_selected_spell_index, Spell};
+use crate::{guard, hmodule, paths, set_selected_spell_index, Spell};
 use crate::icons::IconManager;
+use crate::settings::Settings;
 
 static mut INIT: bool = false;
 pub fn try_init_rendering() {
@@ -109,7 +110,7 @@ impl DisplaySpell {
 
         let cx = screen_w / 2.0;
         let cy = screen_h / 2.0;
-        let radius = screen_w.min(screen_h) / 4.0;
+        let radius = Settings::read_or_default().radius_multiplier * screen_w.min(screen_h);
 
         let img_dim = img_dim(ui);
 
@@ -229,10 +230,8 @@ impl DisplaySpell {
 
 fn img_dim(ui: &Ui) -> f32 {
     let [ww, wh] = ui.io().display_size;
-    ww.min(wh) * IMG_DIM_MULTIPLIER
+    Settings::read_or_default().icon_scale_multiplier * ww.min(wh)
 }
-
-const IMG_DIM_MULTIPLIER: f32 = 0.15;
 
 pub struct SpellWheel {
     font: Option<usize>,
@@ -267,11 +266,7 @@ const DEFAULT_SCREEN_MIN: f32 = 2160.0;
 impl SpellWheel {
     fn try_resize_font(&mut self, ctx: &mut Context) {
         let window_size @ [ww, wh] = ctx.io().display_size;
-        let global_scale = match self.prev_size {
-            Some(prev_size) if prev_size == window_size => ctx.io().font_global_scale,
-            _ => ww.min(wh) / DEFAULT_SCREEN_MIN
-        };
-        ctx.io_mut().font_global_scale = global_scale;
+        ctx.io_mut().font_global_scale = Settings::read_or_default().font_scale_multiplier * ww.min(wh) / DEFAULT_SCREEN_MIN;
         self.prev_size = Some(window_size);
     }
 }
@@ -294,47 +289,51 @@ impl ImguiRenderLoop for SpellWheel {
     }
 
     fn before_render<'a>(&'a mut self, ctx: &mut Context, _render_context: &'a mut dyn RenderContext) {
-        self.try_resize_font(ctx);
+        guard!(
+            self.try_resize_font(ctx);
+        );
     }
 
     fn render(&mut self, ui: &mut Ui) {
-        let font = self.font.map(|font| unsafe { ui.push_font(mem::transmute(font)) });
-        let do_render = SpellWheelData::get(|data| data.do_render);
-        let mut spells = SpellWheelData::get(|data| data.spells.clone());
+        guard!(
+            let font = self.font.map(|font| unsafe { ui.push_font(mem::transmute(font)) });
+            let do_render = SpellWheelData::get(|data| data.do_render);
+            let mut spells = SpellWheelData::get(|data| data.spells.clone());
 
-        if self.did_render && !do_render {
-            tracing::info!("Switching spells");
-            self.switch_spell();
-        }
+            if self.did_render && !do_render {
+                tracing::info!("Switching spells");
+                self.switch_spell();
+            }
 
-        // because imgui is stupid, we need to draw something to the screen, otherwise it will crash
-        if !do_render {
-            spells = vec![];
-        }
+            // because imgui is stupid, we need to draw something to the screen, otherwise it will crash
+            if !do_render {
+                spells = vec![];
+            }
 
-        self.display_spells = DisplaySpell::from_spells(&ui, &spells);
+            self.display_spells = DisplaySpell::from_spells(&ui, &spells);
 
-        let [sw, sh] = ui.io().display_size;
-        ui.window("Spell Wheel")
-            .position([0.0, 0.0], imgui::Condition::Always)
-            .size([sw, sh], imgui::Condition::Always)
-            .bg_alpha(0.0)
-            .no_decoration()
-            .no_inputs()
-            .movable(false)
-            .build(|| {
-                let n = spells.len();
-                if n == 0 {
-                    return;
-                }
+            let [sw, sh] = ui.io().display_size;
+            ui.window("Spell Wheel")
+                .position([0.0, 0.0], imgui::Condition::Always)
+                .size([sw, sh], imgui::Condition::Always)
+                .bg_alpha(0.0)
+                .no_decoration()
+                .no_inputs()
+                .movable(false)
+                .build(|| {
+                    let n = spells.len();
+                    if n == 0 {
+                        return;
+                    }
 
-                let draw_list = ui.get_window_draw_list();
-                DisplaySpell::draw_all(&mut self.display_spells, &ui, &draw_list);
-            });
+                    let draw_list = ui.get_window_draw_list();
+                    DisplaySpell::draw_all(&mut self.display_spells, &ui, &draw_list);
+                });
 
-        self.did_render = do_render;
-        if let Some(font) = font {
-            font.pop();
-        }
+            self.did_render = do_render;
+            if let Some(font) = font {
+                font.pop();
+            }
+        );
     }
 }

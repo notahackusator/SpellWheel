@@ -77,7 +77,7 @@ fn start() {
     let tasks = unsafe { CSTaskImp::instance() }.expect("Could not get CSTaskImp");
     tracing::info!("Running task");
     tasks.run_recurring(
-        tick_guard,
+        tick,
         CSTaskGroupIndex::MenuMan
     );
 }
@@ -90,91 +90,97 @@ pub fn set_selected_spell_index(idx: i32) {
     SELECTED_SPELL_INDEX.store(idx, Ordering::Relaxed);
 }
 
-fn tick_guard(fd4: &FD4TaskData) {
-    let tick_fn = catch_unwind(|| {
-        tick(fd4);
-    });
-    if tick_fn.is_err() {
-        tracing::error!("Encountered an error:\n{}", panic_message::panic_message(&tick_fn.unwrap_err()));
-    }
+macro_rules! guard {
+    ($($t:tt)*) => {
+        let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            $($t)*
+        }));
+        if let Err(err) = out {
+            tracing::error!("Encountered an error:\n{}", panic_message::panic_message(&err));
+        }
+    };
 }
+
+pub(crate) use guard;
 
 static mut WAS_PLAYER_SELECTING_SPELL: bool = false;
 fn tick(_fd4: &FD4TaskData) {
-    run_once!("entered tick function" => {
-        tracing::info!("Entered tick function");
-    });
-    if is_debugging() {
-        run_every!("D tick" every Duration::from_secs(1) => {
-            tracing::info!("In tick function");
+    guard!(
+        run_once!("entered tick function" => {
+            tracing::info!("Entered tick function");
         });
-    }
-    let Some(game_data_man) = unsafe { GameDataMan::instance() }.ok() else {
-        return;
-    };
+        if is_debugging() {
+            run_every!("D tick" every Duration::from_secs(1) => {
+                tracing::info!("In tick function");
+            });
+        }
+        let Some(game_data_man) = unsafe { GameDataMan::instance() }.ok() else {
+            return;
+        };
 
-    let Some(param_repo) = unsafe { SoloParamRepository::instance() }.ok() else {
-        return;
-    };
+        let Some(param_repo) = unsafe { SoloParamRepository::instance() }.ok() else {
+            return;
+        };
 
-    let Some(menu_man) = unsafe { CSMenuManImp::instance() }.ok() else {
-        return;
-    };
+        let Some(menu_man) = unsafe { CSMenuManImp::instance() }.ok() else {
+            return;
+        };
 
-    if param_repo.solo_param_holders[Magic::INDEX as usize].get_res_cap(0).is_none() {
-        return;
-    }
-    run_once!("passed all checks" => {
-        tracing::info!("Passed all checks");
-    });
-    if is_debugging() {
-        run_every!("D passed all checks" every Duration::from_secs(1) => {
+        if param_repo.solo_param_holders[Magic::INDEX as usize].get_res_cap(0).is_none() {
+            return;
+        }
+        run_once!("passed all checks" => {
             tracing::info!("Passed all checks");
         });
-    }
-    try_init_rendering();
-
-    let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);
-    if selected_spell_index != -1 {
-        game_data_man.main_player_game_data.equipment.equip_magic_data.selected_slot = selected_spell_index;
-        SELECTED_SPELL_INDEX.store(-1, Ordering::Relaxed);
-    }
-
-    let mut equipped_spells = Vec::with_capacity(14);
-    let data = &game_data_man.main_player_game_data.equipment.equip_magic_data;
-    for (index, spell) in data.entries.iter().enumerate() {
-        let id = spell.param_id as u32;
-        if let Some(spell) = Spell::try_new(index as i32, id) {
-            equipped_spells.push(spell);
+        if is_debugging() {
+            run_every!("D passed all checks" every Duration::from_secs(1) => {
+                tracing::info!("Passed all checks");
+            });
         }
-    }
-    if is_debugging() {
-        run_every!("D equipped spells" every Duration::from_secs(1) => {
-            tracing::info!("spells: {equipped_spells:?}");
-            tracing::info!("player selecting spell? (before update) = {}", is_player_selecting_spell());
-        });
-    }
+        try_init_rendering();
 
-    if equipped_spells.is_empty() {
-        return;
-    }
-
-    SpellWheelData::mutate(|data| {
-        data.spells = equipped_spells;
-    });
-    unsafe {
-        let is_player_selecting_spell = is_player_selecting_spell();
-        if WAS_PLAYER_SELECTING_SPELL != is_player_selecting_spell {
-            WAS_PLAYER_SELECTING_SPELL = is_player_selecting_spell;
-            menu_man.disable_mouse_cursor = !is_player_selecting_spell;
+        let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);
+        if selected_spell_index != -1 {
+            game_data_man.main_player_game_data.equipment.equip_magic_data.selected_slot = selected_spell_index;
+            SELECTED_SPELL_INDEX.store(-1, Ordering::Relaxed);
         }
+
+        let mut equipped_spells = Vec::with_capacity(14);
+        let data = &game_data_man.main_player_game_data.equipment.equip_magic_data;
+        for (index, spell) in data.entries.iter().enumerate() {
+            let id = spell.param_id as u32;
+            if let Some(spell) = Spell::try_new(index as i32, id) {
+                equipped_spells.push(spell);
+            }
+        }
+        if is_debugging() {
+            run_every!("D equipped spells" every Duration::from_secs(1) => {
+                tracing::info!("spells: {equipped_spells:?}");
+                tracing::info!("player selecting spell? (before update) = {}", is_player_selecting_spell());
+            });
+        }
+
+        if equipped_spells.is_empty() {
+            return;
+        }
+
         SpellWheelData::mutate(|data| {
-            data.do_render = is_player_selecting_spell;
+            data.spells = equipped_spells;
         });
-    }
-    if is_debugging() {
-        run_every!("D player selecting spell" every Duration::from_secs(1) => {
-            tracing::info!("player selecting spell? (after update) = {}", is_player_selecting_spell());
-        });
-    }
+        unsafe {
+            let is_player_selecting_spell = is_player_selecting_spell();
+            if WAS_PLAYER_SELECTING_SPELL != is_player_selecting_spell {
+                WAS_PLAYER_SELECTING_SPELL = is_player_selecting_spell;
+                menu_man.disable_mouse_cursor = !is_player_selecting_spell;
+            }
+            SpellWheelData::mutate(|data| {
+                data.do_render = is_player_selecting_spell;
+            });
+        }
+        if is_debugging() {
+            run_every!("D player selecting spell" every Duration::from_secs(1) => {
+                tracing::info!("player selecting spell? (after update) = {}", is_player_selecting_spell());
+            });
+        }
+    );
 }
