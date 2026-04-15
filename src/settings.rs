@@ -17,6 +17,8 @@ pub struct Settings {
     pub icon_scale_multiplier: f32,
     #[serde(default = "default_radius_multiplier")]
     pub radius_multiplier: f32,
+    #[serde(default = "default_min_radius")]
+    pub min_radius: f32,
     #[serde(default = "default_timing_offset")]
     pub timing_offset: f32,
 }
@@ -25,35 +27,40 @@ pub fn default_key() -> String {
     "TAB".to_string()
 }
 
-pub fn default_debugging() -> bool {
+pub const fn default_debugging() -> bool {
     false
 }
 
-pub fn default_font_scale_multiplier() -> f32 {
+pub const fn default_font_scale_multiplier() -> f32 {
     1.0
 }
 
-pub fn default_icon_scale_multiplier() -> f32 {
+pub const fn default_icon_scale_multiplier() -> f32 {
     0.15
 }
 
-pub fn default_radius_multiplier() -> f32 {
-    0.25
+pub const fn default_radius_multiplier() -> f32 {
+    0.3
 }
 
-pub fn default_timing_offset() -> f32 {
+pub const fn default_min_radius() -> f32 {
+    0.3
+}
+
+pub const fn default_timing_offset() -> f32 {
     0.0
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            key: "TAB".to_string(),
-            debugging: false,
-            font_scale_multiplier: 1.0,
-            icon_scale_multiplier: 0.15,
-            radius_multiplier: 0.25,
-            timing_offset: 0.0,
+            key: default_key(),
+            debugging: default_debugging(),
+            font_scale_multiplier: default_font_scale_multiplier(),
+            icon_scale_multiplier: default_icon_scale_multiplier(),
+            radius_multiplier: default_radius_multiplier(),
+            min_radius: default_min_radius(),
+            timing_offset: default_timing_offset(),
         }
     }
 }

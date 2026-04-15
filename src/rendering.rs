@@ -184,16 +184,24 @@ impl DisplaySpell {
     }
 
     fn draw_all(spells: &mut [DisplaySpell], ui: &Ui, draw_list: &DrawListMut) {
-        let [mx, my] = ui.io().mouse_pos;
-        let [sw, sh] = ui.io().display_size;
-        let dx = mx - sw / 2.0;
-        let dy = my - sh / 2.0;
+        let [mouse_x, mouse_y] = ui.io().mouse_pos;
+        let [screen_w, screen_h] = ui.io().display_size;
+        let dx = mouse_x - screen_w / 2.0;
+        let dy = mouse_y - screen_h / 2.0;
         let mouse_angle = dy.atan2(dx);
 
         for spell in spells.iter_mut() {
             spell.is_highlighted = false;
         }
-        Self::closest(spells, mouse_angle).map(|idx| spells[idx].is_highlighted = true);
+
+        let settings = Settings::read_or_default();
+        let min_radius_sqr = (settings.min_radius * settings.radius_multiplier * screen_w.min(screen_h)).powi(2);
+        let mouse_dist_sqr = dx * dx + dy * dy;
+
+        // Only select closest IF far enough away from the center
+        if mouse_dist_sqr >= min_radius_sqr {
+            Self::closest(spells, mouse_angle).map(|idx| spells[idx].is_highlighted = true);
+        }
 
         for spell in spells.iter() {
             spell.draw(ui, draw_list);

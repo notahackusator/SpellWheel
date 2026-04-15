@@ -9,7 +9,6 @@ pub mod spells;
 pub mod paths;
 
 use std::fs::File;
-use std::panic::catch_unwind;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -60,12 +59,9 @@ fn init(hmodule: usize) {
         tracing::error!("Encountered an error:\n{msg}");
     }));
 
-    let code = catch_unwind(|| {
+    guard!(
         start();
-    });
-    if code.is_err() {
-        tracing::error!("Encountered an error:\n{}", panic_message::panic_message(&code.unwrap_err()));
-    }
+    );
 }
 
 fn start() {
