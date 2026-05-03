@@ -1,81 +1,54 @@
-use std::collections::{HashMap, HashSet};
-use std::time::{Duration, Instant};
-use gamepads::{Button, Gamepads};
-use crate::debugging::{is_debugging, run_every};
+use crate::debugging::{add_to_screen_debug, is_debugging};
+use crate::PROGRAM_START;
+use std::time::Instant;
+use windows::Win32::UI::Input::XboxController::{XInputGetState, XINPUT_GAMEPAD_BUTTON_FLAGS, XINPUT_STATE};
 
+pub type GamepadButtons = XINPUT_GAMEPAD_BUTTON_FLAGS;
+
+#[derive(Clone, Debug)]
 pub struct GamepadState {
-    gamepads: Gamepads,
-    pressed: HashMap<Button, Instant>,
-    right_stick: RightStick,
-    cached_data: GamepadData,
+    pub pressed: [Instant; 16],
+    pub right_stick: RightStick,
 }
 
-pub type Pressed = HashMap<Button, Duration>;
-pub type Released = HashSet<Button>;
 pub type RightStick = [f32; 2];
-pub type GamepadData = (RightStick, Pressed, Released);
 
 impl GamepadState {
     pub fn new() -> Self {
         Self {
-            gamepads: Gamepads::new(),
-            pressed: Default::default(),
+            pressed: [*PROGRAM_START; 16],
             right_stick: Default::default(),
-            cached_data: Default::default(),
         }
     }
 
     pub fn update(&mut self) {
-        self.gamepads.poll();
+        let mut state = XINPUT_STATE::default();
+        unsafe { XInputGetState(0, &mut state) };
+        let gamepad = state.Gamepad;
 
         let now = Instant::now();
-        let mut still_pressed = HashSet::new();
 
-        self.right_stick = [0.0; 2];
-        for gamepad in self.gamepads.all() {
-            let right_stick = gamepad.right_stick().into();
-            if right_stick != [0.0; 2] {
-                self.right_stick = right_stick;
-            }
-            for button in gamepad.all_currently_pressed() {
-                still_pressed.insert(button);
-            }
-        }
+        let div = i16::MAX as f32;
+        self.right_stick = [gamepad.sThumbRX as f32 / div, gamepad.sThumbRY as f32 / div];
 
-        let mut released = HashSet::new();
-        for (button, _) in &self.pressed {
-            if !still_pressed.contains(button) {
-                released.insert(*button);
-            }
-        }
+        let currently_pressed = gamepad.wButtons.0;
 
         // Update self.pressed
-        self.pressed.retain(|button, _start| still_pressed.contains(button));
-
-        // Retain only keys not yet in pressed
-        still_pressed.retain(|button| !self.pressed.contains_key(button));
-        for button in still_pressed {
-            self.pressed.insert(button, now);
-        }
-
-        let mut pressed = HashMap::new();
-        for (button, start) in &self.pressed {
-            pressed.insert(*button, start.elapsed());
+        for i in 0..16 {
+            // Remove released buttons
+            if (currently_pressed >> i) % 2 == 0 {
+                self.pressed[i] = *PROGRAM_START;
+            }
+            // Add pressed buttons
+            else if self.pressed[i] == *PROGRAM_START {
+                self.pressed[i] = now;
+            }
         }
 
         if is_debugging() {
-            run_every!("D gamepad data" every Duration::from_secs(1) => {
-                tracing::info!("Gamepad data:");
-                tracing::info!(" Right stick: {:?}", self.right_stick);
-                tracing::info!(" Pressed: {:?}", pressed);
-                tracing::info!(" Released: {:?}", released);
-            });
+            add_to_screen_debug("Gamepad data:".to_string());
+            add_to_screen_debug(format!(" Right stick: {:?}", self.right_stick));
+            add_to_screen_debug(format!(" Pressed: {:?}", self.pressed));
         }
-
-        self.cached_data = (self.right_stick, pressed, released);
-    }
-    
-    pub fn get_data(&self) -> GamepadData {
-        self.cached_data.clone()
     }
 }

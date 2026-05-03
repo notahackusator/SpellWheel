@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
-use gamepads::Button;
 use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
 use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_TAB};
 use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use lazy_static::lazy_static;
+use windows::Win32::UI::Input::XboxController::XINPUT_GAMEPAD_DPAD_UP;
 use crate::debugging::{add_to_screen_debug, is_debugging, run_every};
-use crate::{gamepad_data, in_menus};
+use crate::{gamepad_state, in_menus, PROGRAM_START};
 use crate::settings::Settings;
 
 lazy_static!(
@@ -291,32 +291,20 @@ pub fn is_player_selecting_spell() -> bool {
 		}
 		return false;
 	}
-	if is_debugging() {
-		add_to_screen_debug("Player not in menus".to_string());
-	}
 	let settings = Settings::read_or_default();
 	match settings.using_controller {
 		true => {
-			let pressed = gamepad_data().1;
-			let out = pressed.get(&Button::DPadUp)
-				.map(|duration| {
-					let min_duration = Duration::from_secs_f32(settings.controller_wheel_open_delay);
-					if is_debugging() {
-						run_every!("controller valid / pressed" every Duration::from_secs(1) => {
-							tracing::info!("Duration: {}, Min duration: {}", duration.as_secs_f32(), min_duration.as_secs_f32());
-						});
-					}
-					*duration >= min_duration
-				})
-				.unwrap_or_else(|| {
-					if is_debugging() {
-						run_every!("N controller valid / pressed" every Duration::from_secs(1) => {
-							tracing::info!("DPad UP not pressed");
-						});
-					}
-					false
-				});
-			out
+			let pressed = gamepad_state().pressed;
+
+			// The trailing_zeros call returns what power of 2 it is,
+			// since the XINPUT_GAMEPAD constants are all powers of 2.
+			let dpad_up = XINPUT_GAMEPAD_DPAD_UP.0.trailing_zeros() as usize;
+
+			let is_pressed = pressed[dpad_up] != *PROGRAM_START;
+			let pressed_for_long_enough = pressed[dpad_up].elapsed() >
+				Duration::from_secs_f32(settings.controller_wheel_open_delay);
+
+			is_pressed && pressed_for_long_enough
 		}
 		false => {
 			let mut prev_key_mutex = PREV_KEY.lock().unwrap();

@@ -12,7 +12,7 @@ pub mod gamepad;
 use std::fs::File;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository, WorldChrManDbg};
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
@@ -20,7 +20,7 @@ use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use lazy_static::lazy_static;
 use tracing_subscriber::fmt;
 use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
-use crate::gamepad::{GamepadData, GamepadState, Pressed, Released, RightStick};
+use crate::gamepad::GamepadState;
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
 use crate::settings::Settings;
@@ -67,21 +67,25 @@ fn init(hmodule: usize) {
 }
 
 lazy_static!(
+    pub static ref PROGRAM_START: Instant = Instant::now();
+);
+
+lazy_static!(
     static ref GAMEPAD_STATE: OnceLock<Arc<Mutex<GamepadState>>> = OnceLock::new();
 );
-fn update_gamepad_data() {
+fn update_gamepad_state() {
     match GAMEPAD_STATE.get() {
         Some(gamepad_state) => gamepad_state.lock().unwrap().update(),
         None => tracing::error!("update_gamepad_data called before GAMEPAD_STATE was initialized"),
     }
 }
 
-pub fn gamepad_data() -> GamepadData {
+pub fn gamepad_state() -> GamepadState {
     match GAMEPAD_STATE.get() {
-        Some(gamepad_state) => gamepad_state.lock().unwrap().get_data(),
+        Some(gamepad_state) => gamepad_state.lock().unwrap().clone(),
         None => {
             tracing::error!("gamepad_data called before GAMEPAD_STATE was initialized");
-            GamepadData::default()
+            GamepadState::new()
         }
     }
 }
@@ -201,7 +205,7 @@ fn tick(_fd4: &FD4TaskData) {
                 tracing::info!("Passed all checks");
             });
         }
-        update_gamepad_data();
+        update_gamepad_state();
         try_init_rendering();
 
         let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);

@@ -6,9 +6,8 @@ use lazy_static::lazy_static;
 use std::sync::{Arc, OnceLock, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
-use crate::{gamepad_data, guard, hmodule, paths, set_selected_spell_index, Spell};
+use crate::{gamepad_state, guard, hmodule, paths, set_selected_spell_index, Spell};
 use crate::debugging::read_committed_screen_debug;
-use crate::gamepad::GamepadData;
 use crate::icons::IconManager;
 use crate::settings::Settings;
 
@@ -209,7 +208,7 @@ impl DisplaySpell {
         let settings = Settings::read_or_default();
 
         let (angle, dist_sqr) = Self::angle_and_dist_sqr(ui, match settings.using_controller {
-            true => Ok(gamepad_data().0),
+            true => Ok(gamepad_state().right_stick),
             false => Err(ui.io().mouse_pos),
         });
 
