@@ -10,16 +10,16 @@ pub mod paths;
 pub mod gamepad;
 
 use std::fs::File;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
-use eldenring::cs::{CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository};
+use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository, WorldChrManDbg};
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use lazy_static::lazy_static;
 use tracing_subscriber::fmt;
-use crate::debugging::{is_debugging, run_every, run_once};
+use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
 use crate::gamepad::{GamepadData, GamepadState, Pressed, Released, RightStick};
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
@@ -125,6 +125,39 @@ pub fn set_selected_spell_index(idx: i32) {
     SELECTED_SPELL_INDEX.store(idx, Ordering::Relaxed);
 }
 
+// One may ask why I'm creating atomic structs in lazy statics.
+// Thour't a cunning fella, I assure ye! Thy suspicions are not misplaced.
+// Though alas, thou art mistaken.
+// For ye see, were I not to do this, one would find that:
+//
+// IN_MENUS.store(false, Ordering::Release);
+// assert!(!in_menus());
+//
+// fails.
+lazy_static!(
+    static ref IN_MENUS: AtomicBool = AtomicBool::new(true);
+);
+
+pub fn in_menus() -> bool {
+    IN_MENUS.load(Ordering::Acquire)
+}
+
+pub fn set_in_menus(world_chr_man_dbg: &WorldChrManDbg, fe_man: &CSFeManImp) {
+    let not_in_game = world_chr_man_dbg.player_session_holder.is_none();
+    let paused = match fe_man.hud_state {
+        CSFeManHudState::Default => false,
+        _ => true
+    };
+    if is_debugging() {
+        add_to_screen_debug(format!("pre-game menu: {not_in_game}"));
+        add_to_screen_debug(format!("in-game menu: {paused}"));
+    }
+    IN_MENUS.store(
+        not_in_game || paused,
+        Ordering::Release
+    );
+}
+
 static mut WAS_PLAYER_SELECTING_SPELL: bool = false;
 fn tick(_fd4: &FD4TaskData) {
     guard!(
@@ -136,6 +169,15 @@ fn tick(_fd4: &FD4TaskData) {
                 tracing::info!("In tick function");
             });
         }
+        let Some(world_chr_man_dbg) = unsafe { WorldChrManDbg::instance() }.ok() else {
+            return;
+        };
+
+        let Some(fe_man) = unsafe { CSFeManImp::instance() }.ok() else {
+            return;
+        };
+        set_in_menus(world_chr_man_dbg, fe_man);
+
         let Some(game_data_man) = unsafe { GameDataMan::instance() }.ok() else {
             return;
         };
@@ -177,10 +219,7 @@ fn tick(_fd4: &FD4TaskData) {
             }
         }
         if is_debugging() {
-            run_every!("D equipped spells" every Duration::from_secs(1) => {
-                tracing::info!("spells: {equipped_spells:?}");
-                tracing::info!("player selecting spell? (before update) = {}", is_player_selecting_spell());
-            });
+            add_to_screen_debug(format!("Equipped spells: {equipped_spells:?}"));
         }
 
         if equipped_spells.is_empty() {
@@ -200,10 +239,7 @@ fn tick(_fd4: &FD4TaskData) {
                 data.do_render = is_player_selecting_spell;
             });
         }
-        if is_debugging() {
-            run_every!("D player selecting spell" every Duration::from_secs(1) => {
-                tracing::info!("player selecting spell? (after update) = {}", is_player_selecting_spell());
-            });
-        }
+
+        commit_screen_debug();
     );
 }

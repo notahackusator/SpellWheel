@@ -6,8 +6,8 @@ use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
 use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_TAB};
 use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use lazy_static::lazy_static;
-use crate::debugging::{is_debugging, run_every};
-use crate::gamepad_data;
+use crate::debugging::{add_to_screen_debug, is_debugging, run_every};
+use crate::{gamepad_data, in_menus};
 use crate::settings::Settings;
 
 lazy_static!(
@@ -285,6 +285,15 @@ lazy_static!(
 	static ref PREV_KEY: Mutex<Option<String>> = Mutex::new(None);
 );
 pub fn is_player_selecting_spell() -> bool {
+	if in_menus() {
+		if is_debugging() {
+			add_to_screen_debug("Player in menus".to_string());
+		}
+		return false;
+	}
+	if is_debugging() {
+		add_to_screen_debug("Player not in menus".to_string());
+	}
 	let settings = Settings::read_or_default();
 	match settings.using_controller {
 		true => {

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 use gamepads::{Button, Gamepads};
+use crate::debugging::{is_debugging, run_every};
 
 pub struct GamepadState {
     gamepads: Gamepads,
@@ -60,6 +61,15 @@ impl GamepadState {
         let mut pressed = HashMap::new();
         for (button, start) in &self.pressed {
             pressed.insert(*button, start.elapsed());
+        }
+
+        if is_debugging() {
+            run_every!("D gamepad data" every Duration::from_secs(1) => {
+                tracing::info!("Gamepad data:");
+                tracing::info!(" Right stick: {:?}", self.right_stick);
+                tracing::info!(" Pressed: {:?}", pressed);
+                tracing::info!(" Released: {:?}", released);
+            });
         }
 
         self.cached_data = (self.right_stick, pressed, released);

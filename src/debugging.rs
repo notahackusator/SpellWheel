@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use eldenring::cs::{Magic, SoloParam, SoloParamRepository};
 use eldenring::fd4::ParamHeaderMetadata;
@@ -103,4 +103,23 @@ pub(crate) use run_once;
 
 pub fn is_debugging() -> bool {
     Settings::read_or_default().debugging
+}
+
+lazy_static!(
+    static ref COMMITTED_SCREEN_DEBUG: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    static ref SCREEN_DEBUG: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+);
+
+pub fn add_to_screen_debug(add: String) {
+    SCREEN_DEBUG.lock().unwrap().push(add);
+}
+
+pub fn commit_screen_debug() {
+    let mut screen_debug = SCREEN_DEBUG.lock().unwrap();
+    *COMMITTED_SCREEN_DEBUG.lock().unwrap() = screen_debug.clone();
+    screen_debug.clear();
+}
+
+pub fn read_committed_screen_debug() -> Vec<String> {
+    std::mem::take(&mut *COMMITTED_SCREEN_DEBUG.lock().unwrap())
 }
