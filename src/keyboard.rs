@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
+use gamepads::Button;
 use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
 use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_TAB};
 use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use lazy_static::lazy_static;
 use crate::debugging::{is_debugging, run_every};
+use crate::gamepad_data;
 use crate::settings::Settings;
 
 lazy_static!(
@@ -284,25 +286,51 @@ lazy_static!(
 );
 pub fn is_player_selecting_spell() -> bool {
 	let settings = Settings::read_or_default();
-	let mut prev_key_mutex = PREV_KEY.lock().unwrap();
-	let key = settings.key;
-	let key_changed = match prev_key_mutex.as_ref() {
-		Some(prev_key) => &key == prev_key,
-		None => false
-	};
-	let key_valid = KEYS.contains_key(key.as_str());
-	if key_changed && !key_valid {
-		tracing::error!("Invalid key: {key}");
-	}
+	match settings.using_controller {
+		true => {
+			let pressed = gamepad_data().1;
+			let out = pressed.get(&Button::DPadUp)
+				.map(|duration| {
+					let min_duration = Duration::from_secs_f32(settings.controller_wheel_open_delay);
+					if is_debugging() {
+						run_every!("controller valid / pressed" every Duration::from_secs(1) => {
+							tracing::info!("Duration: {}, Min duration: {}", duration.as_secs_f32(), min_duration.as_secs_f32());
+						});
+					}
+					*duration >= min_duration
+				})
+				.unwrap_or_else(|| {
+					if is_debugging() {
+						run_every!("N controller valid / pressed" every Duration::from_secs(1) => {
+							tracing::info!("DPad UP not pressed");
+						});
+					}
+					false
+				});
+			out
+		}
+		false => {
+			let mut prev_key_mutex = PREV_KEY.lock().unwrap();
+			let key = settings.key;
+			let key_changed = match prev_key_mutex.as_ref() {
+				Some(prev_key) => &key == prev_key,
+				None => false
+			};
+			let key_valid = KEYS.contains_key(key.as_str());
+			if key_changed && !key_valid {
+				tracing::error!("Invalid key: {key}");
+			}
 
-	let key_code = *KEYS.get(key.as_str())
-		.unwrap_or(&VK_TAB.0) as i32;
-    let out = is_pressed(key_code);
-	if is_debugging() {
-		run_every!("key valid / pressed" every Duration::from_secs(1) => {
-			tracing::info!("{key}: code = {key_code}, valid? = {key_valid}, pressed? = {}, focused? = {}", is_key_pressed(key_code), is_game_focused())
-		});
+			let key_code = *KEYS.get(key.as_str())
+				.unwrap_or(&VK_TAB.0) as i32;
+			let out = is_pressed(key_code);
+			if is_debugging() {
+				run_every!("key valid / pressed" every Duration::from_secs(1) => {
+					tracing::info!("{key}: code = {key_code}, valid? = {key_valid}, pressed? = {}, focused? = {}", is_key_pressed(key_code), is_game_focused())
+				});
+			}
+			*prev_key_mutex = Some(key);
+			out
+		}
 	}
-	*prev_key_mutex = Some(key);
-	out
 }

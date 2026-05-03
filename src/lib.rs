@@ -7,10 +7,11 @@ mod icons;
 mod settings;
 pub mod spells;
 pub mod paths;
+pub mod gamepad;
 
 use std::fs::File;
 use std::sync::atomic::{AtomicI32, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 use eldenring::cs::{CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository};
 use eldenring::fd4::FD4TaskData;
@@ -19,6 +20,7 @@ use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use lazy_static::lazy_static;
 use tracing_subscriber::fmt;
 use crate::debugging::{is_debugging, run_every, run_once};
+use crate::gamepad::{GamepadData, GamepadState, Pressed, Released, RightStick};
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
 use crate::settings::Settings;
@@ -64,6 +66,38 @@ fn init(hmodule: usize) {
     );
 }
 
+lazy_static!(
+    static ref GAMEPAD_STATE: OnceLock<Arc<Mutex<GamepadState>>> = OnceLock::new();
+);
+fn update_gamepad_data() {
+    match GAMEPAD_STATE.get() {
+        Some(gamepad_state) => gamepad_state.lock().unwrap().update(),
+        None => tracing::error!("update_gamepad_data called before GAMEPAD_STATE was initialized"),
+    }
+}
+
+pub fn gamepad_data() -> GamepadData {
+    match GAMEPAD_STATE.get() {
+        Some(gamepad_state) => gamepad_state.lock().unwrap().get_data(),
+        None => {
+            tracing::error!("gamepad_data called before GAMEPAD_STATE was initialized");
+            GamepadData::default()
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! guard {
+    ($($t:tt)*) => {
+        let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            $($t)*
+        }));
+        if let Err(err) = out {
+            tracing::error!("Encountered an error:\n{}", panic_message::panic_message(&err));
+        }
+    };
+}
+
 fn start() {
     tracing::info!("Awaiting system init");
     wait_for_system_init(&Program::current(), Duration::MAX)
@@ -71,6 +105,11 @@ fn start() {
 
     tracing::info!("Init complete");
     let tasks = unsafe { CSTaskImp::instance() }.expect("Could not get CSTaskImp");
+    tracing::info!("Creating gamepad state");
+    let gamepad_state = Arc::new(Mutex::new(GamepadState::new()));
+    if GAMEPAD_STATE.set(gamepad_state).is_err() {
+        tracing::error!("GAMEPAD_STATE should not be set before start");
+    }
     tracing::info!("Running task");
     tasks.run_recurring(
         tick,
@@ -85,19 +124,6 @@ lazy_static!(
 pub fn set_selected_spell_index(idx: i32) {
     SELECTED_SPELL_INDEX.store(idx, Ordering::Relaxed);
 }
-
-macro_rules! guard {
-    ($($t:tt)*) => {
-        let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-            $($t)*
-        }));
-        if let Err(err) = out {
-            tracing::error!("Encountered an error:\n{}", panic_message::panic_message(&err));
-        }
-    };
-}
-
-pub(crate) use guard;
 
 static mut WAS_PLAYER_SELECTING_SPELL: bool = false;
 fn tick(_fd4: &FD4TaskData) {
@@ -133,6 +159,7 @@ fn tick(_fd4: &FD4TaskData) {
                 tracing::info!("Passed all checks");
             });
         }
+        update_gamepad_data();
         try_init_rendering();
 
         let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);

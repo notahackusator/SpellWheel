@@ -4,6 +4,12 @@
 # Note that you should not prefix the key with "VK_". So if you want Tab, write "TAB". If you want Alt, write "MENU".
 key = "TAB"
 
+# Decides whether to use controller or mouse and keyboard. true for controller, false for mouse & keyboard. Default is false.
+using_controller = false
+
+# How is many seconds needed to press DPad Up in order to open the spell wheel on controller. Default is 0.5.
+controller_wheel_open_delay = 0.5
+
 # The amount to scale the spell name font size. Default is 1.
 font_scale_multiplier = 1.0
 

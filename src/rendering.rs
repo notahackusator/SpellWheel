@@ -3,10 +3,11 @@ use std::mem;
 use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
 use imgui::{Context, DrawListMut, FontSource, TextureId, Ui};
 use lazy_static::lazy_static;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
-use crate::{guard, hmodule, paths, set_selected_spell_index, Spell};
+use crate::{gamepad_data, guard, hmodule, paths, set_selected_spell_index, Spell};
+use crate::gamepad::GamepadData;
 use crate::icons::IconManager;
 use crate::settings::Settings;
 
@@ -184,23 +185,27 @@ impl DisplaySpell {
     }
 
     fn draw_all(spells: &mut [DisplaySpell], ui: &Ui, draw_list: &DrawListMut) {
-        let [mouse_x, mouse_y] = ui.io().mouse_pos;
+        let settings = Settings::read_or_default();
+        
+        let [cursor_x, cursor_y] = match settings.using_controller {
+            true => gamepad_data().0,
+            false => ui.io().mouse_pos,
+        };
         let [screen_w, screen_h] = ui.io().display_size;
-        let dx = mouse_x - screen_w / 2.0;
-        let dy = mouse_y - screen_h / 2.0;
-        let mouse_angle = dy.atan2(dx);
+        let dx = cursor_x - screen_w / 2.0;
+        let dy = cursor_y - screen_h / 2.0;
+        let cursor_angle = dy.atan2(dx);
 
         for spell in spells.iter_mut() {
             spell.is_highlighted = false;
         }
 
-        let settings = Settings::read_or_default();
         let min_radius_sqr = (settings.min_radius * settings.radius_multiplier * screen_w.min(screen_h)).powi(2);
-        let mouse_dist_sqr = dx * dx + dy * dy;
+        let cursor_dist_sqr = dx * dx + dy * dy;
 
         // Only select closest IF far enough away from the center
-        if mouse_dist_sqr >= min_radius_sqr {
-            Self::closest(spells, mouse_angle).map(|idx| spells[idx].is_highlighted = true);
+        if cursor_dist_sqr >= min_radius_sqr {
+            Self::closest(spells, cursor_angle).map(|idx| spells[idx].is_highlighted = true);
         }
 
         for spell in spells.iter() {
