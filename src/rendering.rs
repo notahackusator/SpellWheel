@@ -3,11 +3,11 @@ use std::mem;
 use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
 use imgui::{Context, DrawListMut, FontSource, TextureId, Ui};
 use lazy_static::lazy_static;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
 use crate::{gamepad_state, guard, hmodule, paths, set_selected_spell_index, Spell};
-use crate::debugging::read_committed_screen_debug;
+use crate::debugging::{add_to_screen_debug, is_debugging, read_committed_screen_debug};
 use crate::icons::IconManager;
 use crate::settings::Settings;
 
@@ -83,12 +83,10 @@ impl DisplaySpell {
     // Err = cursor pos
     fn angle_and_dist_sqr(ui: &Ui, pos: Result<[f32; 2], [f32; 2]>) -> (f32, f32) {
         let [screen_w, screen_h] = ui.io().display_size;
-        let [x, y] = match pos {
-            Ok([x, y]) => [x * screen_w / 2.0, y * screen_h / 2.0],
-            Err([x, y]) => [x, y]
+        let [dx, dy] = match pos {
+            Ok([x, y]) => [x * screen_w / 2.0, - y * screen_h / 2.0],
+            Err([x, y]) => [x - screen_w / 2.0, y - screen_h / 2.0]
         };
-        let dx = x - screen_w / 2.0;
-        let dy = y - screen_h / 2.0;
         let angle = dy.atan2(dx);
         let dist_sqr = dx * dx + dy * dy;
 
@@ -212,11 +210,6 @@ impl DisplaySpell {
             false => Err(ui.io().mouse_pos),
         });
 
-
-        for spell in spells.iter_mut() {
-            spell.is_highlighted = false;
-        }
-
         let [screen_w, screen_h] = ui.io().display_size;
         let min_radius_sqr = (
             settings.min_radius * settings.radius_multiplier * screen_w.min(screen_h)
@@ -224,7 +217,17 @@ impl DisplaySpell {
 
         // Only select closest IF far enough away from the center
         if dist_sqr >= min_radius_sqr {
-            Self::closest(spells, angle).map(|idx| spells[idx].is_highlighted = true);
+            for spell in spells.iter_mut() {
+                spell.is_highlighted = false;
+            }
+            if let Some(closest_idx) = Self::closest(spells, angle) {
+                if is_debugging() {
+                    add_to_screen_debug(format!("Closest spell index: {closest_idx}"))
+                }
+                spells[closest_idx].is_highlighted = true;
+            } else if is_debugging() {
+                add_to_screen_debug("No spell highlighted, but within range.".to_string());
+            }
         }
 
         for spell in spells.iter() {
@@ -282,6 +285,7 @@ pub struct SpellWheel {
     display_spells: Vec<DisplaySpell>,
     did_render: bool,
     prev_size: Option<[f32; 2]>,
+    prev_spells: Vec<Spell>,
 }
 
 impl SpellWheel {
@@ -291,6 +295,7 @@ impl SpellWheel {
             display_spells: vec![],
             did_render: false,
             prev_size: None,
+            prev_spells: vec![],
         }
     }
 
@@ -354,7 +359,10 @@ impl ImguiRenderLoop for SpellWheel {
                 spells = vec![];
             }
 
-            self.display_spells = DisplaySpell::from_spells(&ui, &spells);
+            if spells != self.prev_spells {
+                self.display_spells = DisplaySpell::from_spells(&ui, &spells);
+            }
+            self.prev_spells = spells;
 
             let [sw, sh] = ui.io().display_size;
             ui.window("Spell Wheel")
