@@ -9,6 +9,7 @@ pub mod spells;
 pub mod paths;
 pub mod gamepad;
 pub mod xinput_hook;
+pub mod await_seamless;
 
 use std::fs::File;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -20,6 +21,7 @@ use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use lazy_static::lazy_static;
 use tracing_subscriber::fmt;
+use crate::await_seamless::{await_seamless, is_seamless_coop_active};
 use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
 use crate::gamepad::GamepadState;
 use crate::keyboard::is_player_selecting_spell;
@@ -53,6 +55,9 @@ fn init(hmodule: usize) {
     HMODULE.set(hmodule).expect("Could not set HMODULE");
     // Fix for Seamless crash
     std::thread::sleep(Duration::from_secs_f32(Settings::read_or_default().timing_offset));
+    if is_seamless_coop_active() {
+        await_seamless();
+    }
 
     fmt().with_writer(File::create(paths::log()).expect("Could not create log file"))
         .with_ansi(false)

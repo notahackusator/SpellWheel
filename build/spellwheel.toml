@@ -23,8 +23,3 @@ radius_multiplier = 0.3
 # This is a fraction of the radius, so with 0.5 you have to move your mouse 50% of the radius in order to select a spell.
 # Default is 0.3.
 min_radius = 0.3
-
-# The number of seconds to delay the mod's initialization.
-# If you're using Seamless Co-op and the game crashes when starting, try setting this number to something like 5 or higher.
-# This will possibly prevent the crash.
-timing_offset = 0
