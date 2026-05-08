@@ -23,7 +23,7 @@ impl IconManager {
     }
     
     fn get_inner(&self, spell_id: u32) -> Option<TextureId> {
-        self.spell_icons.get(&spell_id).map(|id| id.clone())
+        self.spell_icons.get(&spell_id).copied()
     }
     
     pub fn load(render_context: &mut dyn RenderContext) {

@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, RwLock};
 use lazy_static::lazy_static;
 use retour::static_detour;
 use windows::core::s;
@@ -37,8 +37,6 @@ fn hooked_xinput_get_state(
         let suppress_camera = SUPPRESS_CAMERA.load(Ordering::Relaxed);
         if is_debugging() {
             add_to_screen_debug(format!("Camera suppressed? = {suppress_camera}"));
-            add_to_screen_debug(format!("Stored state 1: {:?}", (*HOOKED_STATE.read().unwrap()).Gamepad));
-            add_to_screen_debug(format!("Stored state 2: {:?}", get_xinput_gamepad_state()));
             add_to_screen_debug(format!("Original state: {:?}", (*state).Gamepad));
         }
         if suppress_camera && !state.is_null() {
@@ -68,16 +66,14 @@ pub fn install_xinput_hook() -> bool {
                     let target = GetProcAddress(module, s!("XInputGetState"));
 
                     // Install hook with retour
-                    unsafe {
-                        XInputHook
-                            .initialize(
-                                std::mem::transmute(target),
-                                hooked_xinput_get_state,
-                            )
-                            .expect("Hooked twice into XInput")
-                            .enable()
-                            .expect("XInput hook not initialized despite call");
-                    }
+                    XInputHook
+                        .initialize(
+                            std::mem::transmute(target),
+                            hooked_xinput_get_state,
+                        )
+                        .expect("Hooked twice into XInput")
+                        .enable()
+                        .expect("XInput hook not initialized despite call");
 
                     tracing::info!("Installed XInputGetState hook from DLL {i}");
                     return true;

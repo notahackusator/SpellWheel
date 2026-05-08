@@ -49,11 +49,11 @@ impl SpellWheelData {
     }
 
     pub fn mutate<F: FnOnce(&mut Self)>(f: F) {
-        f(&mut *SPELL_WHEEL_DATA.write().unwrap())
+        f(&mut SPELL_WHEEL_DATA.write().unwrap())
     }
 
     pub fn get<F: FnOnce(&Self) -> T, T>(f: F) -> T {
-        f(&*SPELL_WHEEL_DATA.read().unwrap())
+        f(&SPELL_WHEEL_DATA.read().unwrap())
     }
 }
 
@@ -99,8 +99,7 @@ impl DisplaySpell {
 
             let mut min = 0;
             let mut min_dist = first.dist(cos, sin);
-            for i in 1..spells.len() {
-                let spell = &spells[i];
+            for (i, spell) in spells.iter().enumerate().skip(1) {
                 let dist = spell.dist(cos, sin);
 
                 if dist > min_dist {
@@ -200,7 +199,7 @@ impl DisplaySpell {
 
     fn draw_all(spells: &mut [DisplaySpell], ui: &Ui, draw_list: &DrawListMut) {
         Self::draw_debug(ui, draw_list);
-        if spells.len() == 0 {
+        if spells.is_empty() {
             return;
         }
         let settings = Settings::read_or_default();
@@ -360,7 +359,7 @@ impl ImguiRenderLoop for SpellWheel {
             }
 
             if spells != self.prev_spells {
-                self.display_spells = DisplaySpell::from_spells(&ui, &spells);
+                self.display_spells = DisplaySpell::from_spells(ui, &spells);
             }
             self.prev_spells = spells;
 
@@ -374,7 +373,7 @@ impl ImguiRenderLoop for SpellWheel {
                 .movable(false)
                 .build(|| {
                     let draw_list = ui.get_window_draw_list();
-                    DisplaySpell::draw_all(&mut self.display_spells, &ui, &draw_list);
+                    DisplaySpell::draw_all(&mut self.display_spells, ui, &draw_list);
                 });
 
             self.did_render = do_render;

@@ -8,21 +8,18 @@ mod settings;
 pub mod spells;
 pub mod paths;
 pub mod gamepad;
-pub mod camera;
-pub mod pointers;
 pub mod xinput_hook;
 
 use std::fs::File;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use eldenring::cs::{CSCamera, CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository, WorldChrManDbg};
+use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository, WorldChrManDbg};
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
-use fromsoftware_shared::{F32ViewMatrix, FromStatic, Program, SharedTaskImpExt};
+use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use lazy_static::lazy_static;
 use tracing_subscriber::fmt;
-use crate::camera::{get_view_matrix, try_reset_camera, FD4PadManager};
 use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
 use crate::gamepad::GamepadState;
 use crate::keyboard::is_player_selecting_spell;
@@ -156,10 +153,7 @@ pub fn in_menus() -> bool {
 
 pub fn set_in_menus(world_chr_man_dbg: &WorldChrManDbg, fe_man: &CSFeManImp) {
     let not_in_game = world_chr_man_dbg.player_session_holder.is_none();
-    let paused = match fe_man.hud_state {
-        CSFeManHudState::Default => false,
-        _ => true
-    };
+    let paused = !matches!(fe_man.hud_state, CSFeManHudState::Default);
     if is_debugging() {
         add_to_screen_debug(format!("pre-game menu: {not_in_game}"));
         add_to_screen_debug(format!("in-game menu: {paused}"));
@@ -169,10 +163,6 @@ pub fn set_in_menus(world_chr_man_dbg: &WorldChrManDbg, fe_man: &CSFeManImp) {
         Ordering::Release
     );
 }
-
-// lazy_static!(
-//     static ref STORED_MATRIX: Arc<Mutex<Option<F32ViewMatrix>>> = Arc::new(Mutex::new(None));
-// );
 
 static mut WAS_PLAYER_SELECTING_SPELL: bool = false;
 fn tick(_fd4: &FD4TaskData) {
@@ -247,38 +237,6 @@ fn tick(_fd4: &FD4TaskData) {
         });
         unsafe {
             let is_player_selecting_spell = is_player_selecting_spell();
-            /*if is_debugging() {
-                let fd4p = FD4PadManager::instance();
-                if let Ok(fd4p) = fd4p {
-                    let classname = get_rtti_instance_classname(fd4p as *const _ as usize);
-                    tracing::info!("FD4P: {classname:?}");
-                    add_to_screen_debug(format!("FD4P: {}", fd4p as *const _ as usize));
-                    add_to_screen_debug(format!("Presses: {:?}", fd4p.presses()));
-                    let start = Instant::now();
-                    tracing::info!("search");
-                    add_to_screen_debug(format!("Found anything?: {:?}", fd4p.check_near_deref(&gamepad_state().right_stick)));
-                    add_to_screen_debug(format!("Time taken to calculate: {:?}", start.elapsed()));
-                    tracing::info!("done");
-                }
-            }
-            // Store the camera view matrix if the player started selecting a spell
-            let csc = CSCamera::instance().ok();
-            if !WAS_PLAYER_SELECTING_SPELL && is_player_selecting_spell {
-                *STORED_MATRIX.lock().expect("Stored camera view matrix was poisoned") = get_view_matrix(csc);
-            }
-            // Stop camera movement on controller if selecting a spell.
-            // This isn't perfect, moving in front of a wall for example will cause problems.
-            let csc = CSCamera::instance().ok();
-            if Settings::read_or_default().using_controller && is_player_selecting_spell {
-                try_reset_camera(csc, STORED_MATRIX.lock().expect("Stored camera view matrix was poisoned").as_ref());
-            }
-            if is_debugging() {
-                if let Ok(csc) = CSCamera::instance() {
-                    add_to_screen_debug(format!("MAT1 = {:.2?}", csc.pers_cam_1.matrix));
-                    add_to_screen_debug(format!("MAT2 = {:.2?}", csc.pers_cam_2.matrix));
-                    add_to_screen_debug(format!("STORED = {:.2?}", STORED_MATRIX.lock().expect("Stored camera view matrix was poisoned")));
-                }
-            }*/
             if WAS_PLAYER_SELECTING_SPELL != is_player_selecting_spell {
                 WAS_PLAYER_SELECTING_SPELL = is_player_selecting_spell;
                 menu_man.disable_mouse_cursor = !is_player_selecting_spell;
