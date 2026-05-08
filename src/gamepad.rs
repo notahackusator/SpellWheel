@@ -1,7 +1,8 @@
 use crate::debugging::{add_to_screen_debug, is_debugging};
+use crate::xinput_hook::get_xinput_gamepad_state;
 use crate::PROGRAM_START;
 use std::time::Instant;
-use windows::Win32::UI::Input::XboxController::{XInputGetState, XINPUT_GAMEPAD_BUTTON_FLAGS, XINPUT_STATE};
+use windows::Win32::UI::Input::XboxController::XINPUT_GAMEPAD_BUTTON_FLAGS;
 
 pub type GamepadButtons = XINPUT_GAMEPAD_BUTTON_FLAGS;
 
@@ -22,9 +23,7 @@ impl GamepadState {
     }
 
     pub fn update(&mut self) {
-        let mut state = XINPUT_STATE::default();
-        unsafe { XInputGetState(0, &mut state) };
-        let gamepad = state.Gamepad;
+        let gamepad = get_xinput_gamepad_state();
 
         let now = Instant::now();
 
