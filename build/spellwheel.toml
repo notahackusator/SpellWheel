@@ -23,3 +23,10 @@ radius_multiplier = 0.3
 # This is a fraction of the radius, so with 0.5 you have to move your mouse 50% of the radius in order to select a spell.
 # Default is 0.3.
 min_radius = 0.3
+
+# Paths to JSON files for modded spells. Empty by default. The path is relative to Game/mods/spellwheel/icons, so for example,
+# if you want to reference a JSON file that's in ELDEN RING/Game/mods/spellwheel/icons/MyModdedSpells.json, you'd write ["MyModdedSpells.json"],
+# or if you want to reference a JSON file that's in ELDEN RING/Game/custom spells/MyModdedSpells.json, you'd write ["../../../custom spells/MyModdedSpells.json"]
+# If you want multiple modded spell files, you can have that too: ["ModdedSpells1.json", "ModdedSpells2.json"]
+# For mod creators who want to write such JSON files, read the documentation in the GitHub repo for more info: https://github.com/notahackusator/SpellWheel
+modded_spells = []

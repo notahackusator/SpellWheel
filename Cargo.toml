@@ -24,3 +24,4 @@ panic-message = "0.3.0"
 cached = "0.59.0"
 toml = "0.9.8"
 serde = { version = "1.0.228", features = ["serde_derive"] }
+serde_json = "1.0.149"

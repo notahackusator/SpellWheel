@@ -13,8 +13,6 @@ pub struct Settings {
     pub using_controller: bool,
     #[serde(default = "default_controller_wheel_open_delay")]
     pub controller_wheel_open_delay: f32,
-    #[serde(default = "default_debugging")]
-    pub debugging: bool,
     #[serde(default = "default_font_scale_multiplier")]
     pub font_scale_multiplier: f32,
     #[serde(default = "default_icon_scale_multiplier")]
@@ -23,6 +21,10 @@ pub struct Settings {
     pub radius_multiplier: f32,
     #[serde(default = "default_min_radius")]
     pub min_radius: f32,
+    #[serde(default = "default_modded_spells")]
+    pub modded_spells: Vec<String>,
+    #[serde(default = "default_debugging")]
+    pub debugging: bool,
     #[serde(default = "default_timing_offset")]
     pub timing_offset: f32,
 }
@@ -55,6 +57,10 @@ pub const fn default_radius_multiplier() -> f32 {
     0.3
 }
 
+pub fn default_modded_spells() -> Vec<String> {
+    Vec::new()
+}
+
 pub const fn default_min_radius() -> f32 {
     0.3
 }
@@ -73,6 +79,7 @@ impl Default for Settings {
             font_scale_multiplier: default_font_scale_multiplier(),
             icon_scale_multiplier: default_icon_scale_multiplier(),
             radius_multiplier: default_radius_multiplier(),
+            modded_spells: default_modded_spells(),
             min_radius: default_min_radius(),
             timing_offset: default_timing_offset(),
         }
