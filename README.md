@@ -23,12 +23,13 @@ enter directories with a slash.
 <h3>Creating modded spell JSON files</h3>
 <p>
 The JSON files must be written like this:
+
 ```json
 [
     {
-        // icon ID here.
+        // Icon ID here:
         "id": 1337
-        // path to icon image, relative to spellwheel/icons.
+        // Path to icon image, relative to spellwheel/icons:
         "path_to_icon": "path/to/icon.png"
     }
 ]
