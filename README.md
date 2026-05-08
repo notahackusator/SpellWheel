@@ -28,7 +28,7 @@ The JSON files must be written like this:
 [
     {
         // Icon ID here:
-        "id": 1337
+        "id": 1337,
         // Path to icon image, relative to spellwheel/icons:
         "path_to_icon": "path/to/icon.png"
     }
