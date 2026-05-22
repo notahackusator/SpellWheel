@@ -62,6 +62,7 @@ struct DisplaySpell {
     texture_id: Option<TextureId>,
     spell_name: String,
     is_highlighted: bool,
+    angle: f32,
     pos: [f32; 2],
     img_c1: [f32; 2],
     img_c2: [f32; 2],
@@ -69,6 +70,7 @@ struct DisplaySpell {
     text_c2: [f32; 2],
     rect_c1: [f32; 2],
     rect_c2: [f32; 2],
+    thickness: f32,
     cos_sin: [f32; 2],
 }
 
@@ -175,6 +177,8 @@ impl DisplaySpell {
                     y + max_dy
                 ];
 
+                let thickness = ((max_dx * 2.0).powi(2) + (max_dy * 2.0).powi(2)).sqrt();
+
                 let index = spell.index();
                 let texture_id = IconManager::get(spell.id());
                 let spell_name = spell.name().to_string();
@@ -185,6 +189,7 @@ impl DisplaySpell {
                     texture_id,
                     spell_name,
                     is_highlighted,
+                    angle,
                     pos,
                     img_c1,
                     img_c2,
@@ -192,9 +197,11 @@ impl DisplaySpell {
                     text_c2,
                     rect_c1,
                     rect_c2,
+                    thickness,
                     cos_sin,
                 }
-            }).collect()
+            })
+            .collect()
     }
 
     fn draw_all(spells: &mut [DisplaySpell], ui: &Ui, draw_list: &DrawListMut) {
@@ -215,7 +222,8 @@ impl DisplaySpell {
         ).powi(2);
 
         // Only select closest IF far enough away from the center
-        if dist_sqr >= min_radius_sqr {
+        let can_select = dist_sqr >= min_radius_sqr;
+        if can_select {
             for spell in spells.iter_mut() {
                 spell.is_highlighted = false;
             }
@@ -229,9 +237,54 @@ impl DisplaySpell {
             }
         }
 
+        Self::draw_selector(ui, draw_list, angle, can_select);
+
         for spell in spells.iter() {
             spell.draw(ui, draw_list);
         }
+    }
+
+    fn draw_selector(ui: &Ui, draw_list: &DrawListMut, angle: f32, can_select: bool) {
+        let settings = Settings::read_or_default();
+        if !settings.using_controller || !can_select {
+            return;
+        }
+
+        let [screen_w, screen_h] = ui.io().display_size;
+        let radius = settings.radius_multiplier * screen_w.min(screen_h) - img_dim(ui);
+
+        let [cx, cy] = [screen_w / 2.0, screen_h / 2.0];
+        let mut points = vec![];
+        let num_points = 32;
+        for i in 0..=num_points {
+            let angle = angle + (i as f32 / num_points as f32 - 0.5) * (0.125 * std::f32::consts::TAU);
+            points.push([cx + angle.cos() * radius, cy + angle.sin() * radius]);
+        }
+        let thickness = screen_w.min(screen_h) / 200.0;
+        draw_list.add_polyline(points, [1.0; 4]).thickness(thickness).build();
+
+        let triangle_center_base_radius = radius + thickness;
+        let [triangle_cx, triangle_cy] = [
+            cx + triangle_center_base_radius * angle.cos(),
+            cy + triangle_center_base_radius * angle.sin()
+        ];
+
+        let circle_third = 2.0 * std::f32::consts::FRAC_PI_3;
+        draw_list.add_triangle(
+            [
+                triangle_cx + thickness * angle.cos(),
+                triangle_cy + thickness * angle.sin()
+            ],
+            [
+                triangle_cx + thickness * (angle + circle_third).cos(),
+                triangle_cy + thickness * (angle + circle_third).sin()
+            ],
+            [
+                triangle_cx + thickness * (angle + 2.0 * circle_third).cos(),
+                triangle_cy + thickness * (angle + 2.0 * circle_third).sin()
+            ],
+            [1.0; 4]
+        ).filled(true).build();
     }
 
     fn draw(&self, ui: &Ui, draw_list: &DrawListMut) {
