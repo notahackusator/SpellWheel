@@ -240,7 +240,7 @@ impl DisplaySpell {
         Self::draw_selector(ui, draw_list, angle, can_select);
 
         for spell in spells.iter() {
-            spell.draw(ui, draw_list);
+            spell.draw(spells.len(), ui, draw_list);
         }
     }
 
@@ -251,17 +251,15 @@ impl DisplaySpell {
         }
 
         let [screen_w, screen_h] = ui.io().display_size;
-        let radius = settings.radius_multiplier * screen_w.min(screen_h) - img_dim(ui);
+        let thickness = screen_w.min(screen_h) / 200.0;
+        let radius = settings.radius_multiplier * screen_w.min(screen_h) - img_dim(ui) - thickness * 2.0;
 
         let [cx, cy] = [screen_w / 2.0, screen_h / 2.0];
-        let mut points = vec![];
-        let num_points = 32;
-        for i in 0..=num_points {
-            let angle = angle + (i as f32 / num_points as f32 - 0.5) * (0.125 * std::f32::consts::TAU);
-            points.push([cx + angle.cos() * radius, cy + angle.sin() * radius]);
-        }
-        let thickness = screen_w.min(screen_h) / 200.0;
-        draw_list.add_polyline(points, [1.0; 4]).thickness(thickness).build();
+
+        let bezier = Self::arc_bezier(
+            cx, cy, radius, angle - 0.125 * std::f32::consts::TAU, angle + 0.125 * std::f32::consts::TAU
+        );
+        draw_list.add_bezier_curve(bezier[0], bezier[1], bezier[2], bezier[3], [1.0; 4]).thickness(thickness).build();
 
         let triangle_center_base_radius = radius + thickness;
         let [triangle_cx, triangle_cy] = [
@@ -287,7 +285,59 @@ impl DisplaySpell {
         ).filled(true).build();
     }
 
-    fn draw(&self, ui: &Ui, draw_list: &DrawListMut) {
+    fn arc_bezier(cx: f32, cy: f32, radius: f32, start_angle: f32, end_angle: f32) -> [[f32; 2]; 4] {
+        let theta = end_angle - start_angle;
+
+        let k = (4.0 / 3.0) * (theta / 4.0).tan();
+
+        let (s0, c0) = start_angle.sin_cos();
+        let (s1, c1) = end_angle.sin_cos();
+
+        let p0 = [
+            cx + radius * c0,
+            cy + radius * s0,
+        ];
+
+        let p3 = [
+            cx + radius * c1,
+            cy + radius * s1,
+        ];
+
+        // Tangent vectors
+        let t0 = [-s0, c0];
+        let t1 = [-s1, c1];
+
+        let p1 = [
+            p0[0] + radius * k * t0[0],
+            p0[1] + radius * k * t0[1],
+        ];
+
+        let p2 = [
+            p3[0] - radius * k * t1[0],
+            p3[1] - radius * k * t1[1],
+        ];
+
+        [p0, p1, p2, p3]
+    }
+
+    fn draw(&self, num_spells: usize, ui: &Ui, draw_list: &DrawListMut) {
+        let settings = Settings::read_or_default();
+        if settings.using_controller {
+            let [screen_w, screen_h] = ui.io().display_size;
+
+            let [cx, cy] = [screen_w / 2.0, screen_h / 2.0];
+
+            let thickness = screen_w.min(screen_h) / 200.0;
+
+            let radius = settings.radius_multiplier * screen_w.min(screen_h) - img_dim(ui);
+
+            let angle_offset = std::f32::consts::TAU / num_spells as f32 - (thickness / radius).atan();
+
+            let bezier = Self::arc_bezier(
+                cx, cy, radius, self.angle - angle_offset, self.angle + angle_offset
+            );
+            draw_list.add_bezier_curve(bezier[0], bezier[1], bezier[2], bezier[3], [1.0; 4]).thickness(thickness).build();
+        }
         if self.is_highlighted {
             draw_list.add_rect(
                 self.rect_c1,

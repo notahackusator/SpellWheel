@@ -2,33 +2,43 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use eldenring::cs::{Magic, SoloParam, SoloParamRepository};
-use eldenring::fd4::ParamHeaderMetadata;
+use eldenring::fd4::ParamFile;
 use lazy_static::lazy_static;
 use crate::settings::Settings;
 use crate::spells::Spell;
 
 #[allow(unused)]
-pub unsafe fn hacked_lookup_table_lol(metadata: &ParamHeaderMetadata) -> &[[u32; 2]] {
-    let stolen: [u32; 4] = *(metadata as *const _ as *const [u32; 4]);
-    let file_size = stolen[0];
-    let row_count = stolen[1];
+pub unsafe fn hacked_lookup_table_lol(metadata: &ParamFileMetadata) -> &[[u32; 2]] {
+    let stolen: ParamFileMetadata = *metadata;
+    let file_size = stolen.0[0];
+    let row_count = stolen.0[1];
 
     #[allow(unused_doc_comments)]
     /// stolen from [ParamHeaderMetadata::lookup_table]
     let aligned_file_size = file_size.next_multiple_of(0x10) as usize;
 
-    let file_start = (metadata as *const ParamHeaderMetadata).add(1) as *const u8;
+    let file_start = (metadata as *const ParamFileMetadata).add(1) as *const u8;
     std::slice::from_raw_parts(
         file_start.add(aligned_file_size) as *const [u32; 2],
         row_count as usize,
     )
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct ParamFileMetadata([u32; 4]);
+
+pub unsafe fn metadata_ptr(data: &ParamFile) -> &ParamFileMetadata {
+    let ptr = (data as *const ParamFile).byte_sub(size_of::<ParamFileMetadata>())
+        as *const ParamFileMetadata;
+    &*ptr
+}
+
 #[allow(unused)]
 pub unsafe fn log_all_spell_names_hopefully(param_repo: &mut SoloParamRepository) {
     let data = &param_repo.solo_param_holders[Magic::INDEX as usize].get_res_cap(0).unwrap()
         .param_res_cap.data;
-    let lookup_table = hacked_lookup_table_lol(data.metadata());
+    let lookup_table = hacked_lookup_table_lol(metadata_ptr(data));
     for &[param_id, _] in lookup_table.iter() {
         tracing::info!("{param_id}={:?}", Spell::get_name(param_id));
     }
@@ -38,7 +48,7 @@ pub unsafe fn log_all_spell_names_hopefully(param_repo: &mut SoloParamRepository
 pub unsafe fn log_all_spell_data_hopefully(param_repo: &mut SoloParamRepository) {
     let data = &param_repo.solo_param_holders[Magic::INDEX as usize].get_res_cap(0).unwrap()
         .param_res_cap.data;
-    let lookup_table = hacked_lookup_table_lol(data.metadata());
+    let lookup_table = hacked_lookup_table_lol(metadata_ptr(data));
     for &[param_id, _] in lookup_table.iter() {
         let spell = param_repo.get::<Magic>(param_id)
             .expect(&format!("Could not get spell id {param_id}"));

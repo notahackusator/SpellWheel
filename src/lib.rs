@@ -189,7 +189,7 @@ fn tick(_fd4: &FD4TaskData) {
         };
         set_in_menus(world_chr_man_dbg, fe_man);
 
-        let Some(game_data_man) = unsafe { GameDataMan::instance() }.ok() else {
+        let Some(game_data_man) = unsafe { GameDataMan::instance_mut() }.ok() else {
             return;
         };
 
@@ -197,7 +197,7 @@ fn tick(_fd4: &FD4TaskData) {
             return;
         };
 
-        let Some(menu_man) = unsafe { CSMenuManImp::instance() }.ok() else {
+        let Some(menu_man) = unsafe { CSMenuManImp::instance_mut() }.ok() else {
             return;
         };
 
