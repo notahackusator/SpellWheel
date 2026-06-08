@@ -1,6 +1,6 @@
 use crate::debugging::{add_to_screen_debug, is_debugging, read_committed_screen_debug};
 use crate::icons::IconManager;
-use crate::settings::Settings;
+use crate::settings::{Settings, SpellNames};
 use crate::spells::Spell;
 use crate::gamepad_state;
 use imgui::{DrawListMut, TextureId, Ui};
@@ -69,11 +69,13 @@ impl DisplaySpell {
             return vec![];
         }
 
+        let settings = Settings::read_or_default();
+
         let [screen_w, screen_h] = ui.io().display_size;
 
         let cx = screen_w / 2.0;
         let cy = screen_h / 2.0;
-        let radius = Settings::read_or_default().radius_multiplier * screen_w.min(screen_h);
+        let radius = settings.radius_multiplier * screen_w.min(screen_h);
 
         let img_dim = img_dim(ui);
 
@@ -93,7 +95,10 @@ impl DisplaySpell {
                 ];
 
                 let spell_name = WrappedText::new(ui, img_dim, spell.name());
-                let [text_w, text_h] = [img_dim, spell_name.line_height * spell_name.lines.len() as f32];
+                let [text_w, text_h] = match settings.spell_names() {
+                    SpellNames::Show => [img_dim, spell_name.line_height * spell_name.lines.len() as f32],
+                    _ => [0.0; 2]
+                };
 
                 let img_c1 = [
                     x - img_dim / 2.0,
@@ -263,12 +268,12 @@ impl DisplaySpell {
     }
 
     pub fn draw(&self, num_spells: usize, ui: &Ui, draw_list: &DrawListMut) {
+        let [screen_w, screen_h] = ui.io().display_size;
+
+        let [cx, cy] = [screen_w / 2.0, screen_h / 2.0];
+
         let settings = Settings::read_or_default();
         if settings.using_controller {
-            let [screen_w, screen_h] = ui.io().display_size;
-
-            let [cx, cy] = [screen_w / 2.0, screen_h / 2.0];
-
             let thickness = screen_w.min(screen_h) / 200.0;
 
             let radius = settings.radius_multiplier * screen_w.min(screen_h) - img_dim(ui);
@@ -289,6 +294,10 @@ impl DisplaySpell {
                 self.rect_c2,
                 [1.0, 1.0, 1.0, 0.2]
             ).filled(true).rounding(10.0).build();
+
+            if let SpellNames::Center = settings.spell_names() {
+                self.spell_name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), true);
+            }
         }
         match self.texture_id {
             Some(texture_id) => draw_list.add_image(
@@ -302,7 +311,9 @@ impl DisplaySpell {
                 [0.5, 0.5, 0.5, 1.0]
             ).build()
         }
-        self.spell_name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), true);
+        if let SpellNames::Show = settings.spell_names() {
+            self.spell_name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), true);
+        }
     }
 
     pub fn draw_debug(ui: &Ui, draw_list: &DrawListMut) {

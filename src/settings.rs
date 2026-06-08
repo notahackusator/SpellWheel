@@ -13,6 +13,8 @@ pub struct Settings {
     pub using_controller: bool,
     #[serde(default = "default_controller_wheel_open_delay")]
     pub controller_wheel_open_delay: f32,
+    #[serde(default = "default_spell_names")]
+    pub spell_names: String,
     #[serde(default = "default_font_scale_multiplier")]
     pub font_scale_multiplier: f32,
     #[serde(default = "default_icon_scale_multiplier")]
@@ -39,6 +41,10 @@ pub const fn default_using_controller() -> bool {
 
 pub const fn default_controller_wheel_open_delay() -> f32 {
     0.5
+}
+
+pub fn default_spell_names() -> String {
+    "show".to_string()
 }
 
 pub const fn default_debugging() -> bool {
@@ -75,6 +81,7 @@ impl Default for Settings {
             key: default_key(),
             using_controller: default_using_controller(),
             controller_wheel_open_delay: default_controller_wheel_open_delay(),
+            spell_names: default_spell_names(),
             debugging: default_debugging(),
             font_scale_multiplier: default_font_scale_multiplier(),
             icon_scale_multiplier: default_icon_scale_multiplier(),
@@ -82,6 +89,24 @@ impl Default for Settings {
             modded_spells: default_modded_spells(),
             min_radius: default_min_radius(),
             timing_offset: default_timing_offset(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum SpellNames {
+    Show,
+    Center,
+    Hide
+}
+
+impl<S: AsRef<str>> From<S> for SpellNames {
+    fn from(value: S) -> Self {
+        match value.as_ref().to_lowercase().as_str() {
+            "show" => Self::Show,
+            "center" => Self::Center,
+            "hide" => Self::Hide,
+            _ => Self::Show,
         }
     }
 }
@@ -105,5 +130,9 @@ impl Settings {
         });
 
         SETTINGS_CACHE.read().expect("Could not acquire settings cache").clone()
+    }
+
+    pub fn spell_names(&self) -> SpellNames {
+        self.spell_names.as_str().into()
     }
 }

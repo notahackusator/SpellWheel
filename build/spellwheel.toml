@@ -10,6 +10,10 @@ using_controller = false
 # How is many seconds needed to press DPad Up in order to open the spell wheel on controller. Default is 0.5.
 controller_wheel_open_delay = 0.5
 
+# How to display the names of the spells. "show" to show them on each spell, "center" to show the selected spell,
+# and "hide" to hide them completely. Default is "show"
+spell_names = "show"
+
 # The amount to scale the spell name font size. Default is 1.
 font_scale_multiplier = 1.0
 
