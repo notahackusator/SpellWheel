@@ -10,6 +10,7 @@ pub mod paths;
 pub mod gamepad;
 pub mod xinput_hook;
 pub mod await_seamless;
+pub mod display_spell;
 
 use std::fs::File;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
