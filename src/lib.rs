@@ -11,8 +11,11 @@ pub mod gamepad;
 pub mod xinput_hook;
 pub mod await_seamless;
 pub mod display_spell;
+pub mod mouse;
+pub mod hwindow;
 
 use std::fs::File;
+use std::mem;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -25,6 +28,7 @@ use tracing_subscriber::fmt;
 use crate::await_seamless::{await_seamless, is_seamless_coop_active};
 use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
 use crate::gamepad::GamepadState;
+use crate::hwindow::get_process_window;
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
 use crate::settings::Settings;
@@ -35,6 +39,14 @@ static HMODULE: OnceLock<usize> = OnceLock::new();
 
 pub fn hmodule() -> usize {
     *HMODULE.get().expect("Could not get HMODULE")
+}
+
+static HWND: OnceLock<usize> = OnceLock::new();
+
+pub fn hwnd() -> windows::Win32::Foundation::HWND {
+    unsafe {
+        mem::transmute(*HWND.get().expect("Could not get HWND"))
+    }
 }
 
 #[unsafe(no_mangle)]

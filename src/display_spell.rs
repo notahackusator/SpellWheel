@@ -4,6 +4,8 @@ use crate::settings::{Settings, SpellNames};
 use crate::spells::Spell;
 use crate::gamepad_state;
 use imgui::{DrawListMut, TextureId, Ui};
+use crate::hwindow::get_window_size;
+use crate::mouse::get_mouse_state;
 
 pub struct DisplaySpell {
     pub index: i32,
@@ -31,10 +33,15 @@ impl DisplaySpell {
     // Ok = controller pos
     // Err = cursor pos
     pub fn angle_and_dist_sqr(ui: &Ui, pos: Result<[f32; 2], [f32; 2]>) -> (f32, f32) {
-        let [screen_w, screen_h] = ui.io().display_size;
+        if is_debugging() {
+            add_to_screen_debug(format!("Window focused? = {}", ui.is_window_focused()));
+            add_to_screen_debug(format!("Mouse / right stick pos: {pos:?}"));
+            add_to_screen_debug(format!("Mouse state: {:?}", get_mouse_state()));
+        }
+        let [ww, wh] = get_window_size();
         let [dx, dy] = match pos {
-            Ok([x, y]) => [x * screen_w / 2.0, - y * screen_h / 2.0],
-            Err([x, y]) => [x - screen_w / 2.0, y - screen_h / 2.0]
+            Ok([x, y]) => [x * ww / 2.0, - y * wh / 2.0],
+            Err([x, y]) => [x - ww / 2.0, y - wh / 2.0]
         };
         let angle = dy.atan2(dx);
         let dist_sqr = dx * dx + dy * dy;
@@ -71,11 +78,11 @@ impl DisplaySpell {
 
         let settings = Settings::read_or_default();
 
-        let [screen_w, screen_h] = ui.io().display_size;
+        let [ww, wh] = get_window_size();
 
-        let cx = screen_w / 2.0;
-        let cy = screen_h / 2.0;
-        let radius = settings.radius_multiplier * screen_w.min(screen_h);
+        let cx = ww / 2.0;
+        let cy = wh / 2.0;
+        let radius = settings.radius_multiplier * ww.min(wh);
 
         let img_dim = img_dim(ui);
 
@@ -160,10 +167,10 @@ impl DisplaySpell {
 
         let (angle, dist_sqr) = Self::angle_and_dist_sqr(ui, match settings.using_controller {
             true => Ok(gamepad_state().right_stick),
-            false => Err(ui.io().mouse_pos),
+            false => Err(get_mouse_state().mouse_pos()),
         });
 
-        let [screen_w, screen_h] = ui.io().display_size;
+        let [screen_w, screen_h] = get_window_size();
         let min_radius_sqr = (
             settings.min_radius * settings.radius_multiplier * screen_w.min(screen_h)
         ).powi(2);
@@ -197,7 +204,7 @@ impl DisplaySpell {
             return;
         }
 
-        let [screen_w, screen_h] = ui.io().display_size;
+        let [screen_w, screen_h] = get_window_size();
         let thickness = screen_w.min(screen_h) / 200.0;
         let radius = settings.radius_multiplier * screen_w.min(screen_h) - img_dim(ui) - thickness * 2.0;
 
@@ -268,7 +275,7 @@ impl DisplaySpell {
     }
 
     pub fn draw(&self, num_spells: usize, ui: &Ui, draw_list: &DrawListMut) {
-        let [screen_w, screen_h] = ui.io().display_size;
+        let [screen_w, screen_h] = get_window_size();
 
         let [cx, cy] = [screen_w / 2.0, screen_h / 2.0];
 
@@ -394,6 +401,6 @@ impl WrappedText {
 }
 
 fn img_dim(ui: &Ui) -> f32 {
-    let [ww, wh] = ui.io().display_size;
+    let [ww, wh] = get_window_size();
     Settings::read_or_default().icon_scale_multiplier * ww.min(wh)
 }

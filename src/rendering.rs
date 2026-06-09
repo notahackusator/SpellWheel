@@ -1,13 +1,15 @@
 use std::fs::read;
 use std::mem;
 use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
-use imgui::{Context, FontSource, Ui};
+use imgui::{Context, FontSource, Ui, WindowFlags};
 use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
-use crate::{guard, hmodule, paths, set_selected_spell_index, Spell};
+use crate::{guard, hmodule, paths, set_selected_spell_index, Spell, HWND};
+use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::display_spell::DisplaySpell;
+use crate::hwindow::{get_process_window, get_window_size};
 use crate::icons::IconManager;
 use crate::settings::Settings;
 
@@ -61,7 +63,6 @@ pub struct SpellWheel {
     font: Option<usize>,
     display_spells: Vec<DisplaySpell>,
     did_render: bool,
-    prev_size: Option<[f32; 2]>,
     prev_spells: Vec<Spell>,
 }
 
@@ -71,7 +72,6 @@ impl SpellWheel {
             font: None,
             display_spells: vec![],
             did_render: false,
-            prev_size: None,
             prev_spells: vec![],
         }
     }
@@ -91,27 +91,32 @@ const DEFAULT_SCREEN_MIN: f32 = 2160.0;
 
 impl SpellWheel {
     fn try_resize_font(&mut self, ctx: &mut Context) {
-        let window_size @ [ww, wh] = ctx.io().display_size;
+        let [ww, wh] = get_window_size();
         ctx.io_mut().font_global_scale = Settings::read_or_default().font_scale_multiplier * ww.min(wh) / DEFAULT_SCREEN_MIN;
-        self.prev_size = Some(window_size);
     }
 }
 
 impl ImguiRenderLoop for SpellWheel {
     fn initialize<'a>(&'a mut self, ctx: &mut Context, render_context: &'a mut dyn RenderContext) {
-        tracing::info!("Initializing spell wheel UI");
+        guard!(
+            tracing::info!("Initializing spell wheel UI");
 
-        tracing::info!("Loading font...");
+            tracing::info!("Setting HWND...");
+            HWND.set(unsafe { mem::transmute(get_process_window().expect("Could not find HWND")) }).expect("Count not set HWND");
+            tracing::info!("Set HWND");
 
-        self.font = read(paths::font()).map(|font_data| unsafe {
-            mem::transmute(ctx.fonts().add_font(&[FontSource::TtfData {
-                data: &font_data,
-                size_pixels: DEFAULT_FONT_HEIGHT,
-                config: None
-            }]))
-        }).ok();
-        tracing::info!("Font loaded");
-        IconManager::load(render_context);
+            tracing::info!("Loading font...");
+
+            self.font = read(paths::font()).map(|font_data| unsafe {
+                mem::transmute(ctx.fonts().add_font(&[FontSource::TtfData {
+                    data: &font_data,
+                    size_pixels: DEFAULT_FONT_HEIGHT,
+                    config: None
+                }]))
+            }).ok();
+            tracing::info!("Font loaded");
+            IconManager::load(render_context);
+        );
     }
 
     fn before_render<'a>(&'a mut self, ctx: &mut Context, _render_context: &'a mut dyn RenderContext) {
@@ -136,20 +141,40 @@ impl ImguiRenderLoop for SpellWheel {
                 spells = vec![];
             }
 
-            if spells != self.prev_spells {
-                self.display_spells = DisplaySpell::from_spells(ui, &spells);
-            }
-            self.prev_spells = spells;
-
             let [sw, sh] = ui.io().display_size;
             ui.window("Spell Wheel")
                 .position([0.0, 0.0], imgui::Condition::Always)
                 .size([sw, sh], imgui::Condition::Always)
+                .flags(
+                    WindowFlags::NO_TITLE_BAR |
+                    WindowFlags::NO_RESIZE |
+                    WindowFlags::NO_SCROLLBAR |
+                    WindowFlags::NO_SCROLL_WITH_MOUSE |
+                    WindowFlags::NO_BACKGROUND
+                )
                 .bg_alpha(0.0)
                 .no_decoration()
                 .no_inputs()
                 .movable(false)
                 .build(|| {
+                    if spells != self.prev_spells {
+                        self.display_spells = DisplaySpell::from_spells(ui, &spells);
+                    }
+
+                    if is_debugging() {
+                        add_to_screen_debug(format!("Window size: {:?}", get_window_size()));
+                        add_to_screen_debug(format!("Imgui window size: {:?}", ui.window_size()));
+                        add_to_screen_debug(format!("Imgui display size: {:?}", ui.io().display_size));
+                        for sp in &self.display_spells {
+                            let dx = sp.pos[0] - sw / 2.0;
+                            let dy = sp.pos[1] - sh / 2.0;
+                            let dsqr = dx * dx + dy * dy;
+                            add_to_screen_debug(format!("DSQR: {dsqr}"));
+                        }
+                    }
+
+                    self.prev_spells = spells;
+
                     let draw_list = ui.get_window_draw_list();
                     DisplaySpell::draw_all(&mut self.display_spells, ui, &draw_list);
                 });
