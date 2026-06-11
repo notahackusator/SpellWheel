@@ -28,7 +28,6 @@ use tracing_subscriber::fmt;
 use crate::await_seamless::{await_seamless, is_seamless_coop_active};
 use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
 use crate::gamepad::GamepadState;
-use crate::hwindow::get_process_window;
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
 use crate::settings::Settings;
@@ -127,8 +126,9 @@ fn start() {
     wait_for_system_init(&Program::current(), Duration::MAX)
         .expect("Could not await system init.");
 
-    tracing::info!("Hooking XInput DLL's");
-    install_xinput_hook();
+    if !Settings::read_or_default().await_xinput_hook {
+        install_xinput_hook();
+    }
 
     tracing::info!("Init complete");
     let tasks = unsafe { CSTaskImp::instance() }.expect("Could not get CSTaskImp");
@@ -224,6 +224,9 @@ fn tick(_fd4: &FD4TaskData) {
             run_every!("D passed all checks" every Duration::from_secs(1) => {
                 tracing::info!("Passed all checks");
             });
+        }
+        if Settings::read_or_default().await_xinput_hook {
+            install_xinput_hook();
         }
         update_gamepad_state();
         try_init_rendering();

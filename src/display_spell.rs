@@ -84,7 +84,7 @@ impl DisplaySpell {
         let cy = wh / 2.0;
         let radius = settings.radius_multiplier * ww.min(wh);
 
-        let img_dim = img_dim(ui);
+        let img_dim = img_dim();
 
         spells.iter().enumerate()
             .map(|(i, spell)| {
@@ -191,24 +191,24 @@ impl DisplaySpell {
             }
         }
 
-        Self::draw_selector(ui, draw_list, angle, can_select);
+        Self::draw_selector(draw_list, angle, can_select);
 
         for spell in spells.iter() {
             spell.draw(spells.len(), ui, draw_list);
         }
     }
 
-    pub fn draw_selector(ui: &Ui, draw_list: &DrawListMut, angle: f32, can_select: bool) {
+    pub fn draw_selector(draw_list: &DrawListMut, angle: f32, can_select: bool) {
         let settings = Settings::read_or_default();
         if !settings.using_controller || !can_select {
             return;
         }
 
-        let [screen_w, screen_h] = get_window_size();
-        let thickness = screen_w.min(screen_h) / 200.0;
-        let radius = settings.radius_multiplier * screen_w.min(screen_h) - img_dim(ui) - thickness * 2.0;
+        let [ww, wh] = get_window_size();
+        let thickness = ww.min(wh) / 200.0;
+        let radius = settings.radius_multiplier * ww.min(wh) - img_dim() - thickness * 2.0;
 
-        let [cx, cy] = [screen_w / 2.0, screen_h / 2.0];
+        let [cx, cy] = [ww / 2.0, wh / 2.0];
 
         let bezier = Self::arc_bezier(
             cx, cy, radius, angle - 0.125 * std::f32::consts::TAU, angle + 0.125 * std::f32::consts::TAU
@@ -283,7 +283,7 @@ impl DisplaySpell {
         if settings.using_controller {
             let thickness = screen_w.min(screen_h) / 200.0;
 
-            let radius = settings.radius_multiplier * screen_w.min(screen_h) - img_dim(ui);
+            let radius = settings.radius_multiplier * screen_w.min(screen_h) - img_dim();
 
             let angle_offset = std::f32::consts::PI / num_spells as f32 - (thickness / radius).atan();
             if is_debugging() {
@@ -303,7 +303,7 @@ impl DisplaySpell {
             ).filled(true).rounding(10.0).build();
 
             if let SpellNames::Center = settings.spell_names() {
-                self.spell_name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), true);
+                self.spell_name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), true, settings.text_shadows);
             }
         }
         match self.texture_id {
@@ -319,7 +319,7 @@ impl DisplaySpell {
             ).build()
         }
         if let SpellNames::Show = settings.spell_names() {
-            self.spell_name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), true);
+            self.spell_name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), true, settings.text_shadows);
         }
     }
 
@@ -384,15 +384,33 @@ impl WrappedText {
         }
     }
 
-    pub fn add_to_draw_list(&self, draw_list: &DrawListMut, pos: [f32; 2], color: [f32; 4], centered: bool) {
+    pub fn add_to_draw_list(&self, draw_list: &DrawListMut, pos: [f32; 2], color: [f32; 4], centered: bool, shadow: bool) {
         for (i, (line, width)) in self.lines.iter().zip(self.widths.iter()).enumerate() {
             let x = if centered {
                 pos[0] - width / 2.0
             } else {
                 pos[0]
             };
+            let y = pos[1] + i as f32 * self.line_height;
+
+            if shadow {
+                const SHADOW_DELTAS: [[f32; 2]; 9] = [
+                    [-1.0, -1.0], [0.0, -1.0], [1.0, -1.0],
+                    [-1.0,  0.0], [0.0,  0.0], [1.0,  0.0],
+                    [-1.0,  1.0], [0.0,  1.0], [1.0,  1.0],
+                ];
+
+                for [dx, dy] in SHADOW_DELTAS {
+                    draw_list.add_text(
+                        [x + dx, y + dy],
+                        [0.0, 0.0, 0.0, 1.0],
+                        line,
+                    );
+                }
+            }
+
             draw_list.add_text(
-                [x, pos[1] + i as f32 * self.line_height],
+                [x, y],
                 color,
                 line,
             );
@@ -400,7 +418,7 @@ impl WrappedText {
     }
 }
 
-fn img_dim(ui: &Ui) -> f32 {
+fn img_dim() -> f32 {
     let [ww, wh] = get_window_size();
     Settings::read_or_default().icon_scale_multiplier * ww.min(wh)
 }

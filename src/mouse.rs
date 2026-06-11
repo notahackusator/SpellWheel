@@ -1,6 +1,6 @@
-use windows::Win32::Graphics::Gdi::ScreenToClient;
-use windows::Win32::{Foundation::{HWND, POINT}, UI::WindowsAndMessaging::{GetCursorPos, GetForegroundWindow}};
 use crate::hwnd;
+use windows::Win32::Graphics::Gdi::ScreenToClient;
+use windows::Win32::{Foundation::POINT, UI::WindowsAndMessaging::{GetCursorPos, GetForegroundWindow}};
 
 #[derive(Clone, Copy, Debug)]
 pub struct MouseState {
@@ -25,7 +25,7 @@ pub fn get_mouse_state() -> MouseState {
 
     client = screen;
     unsafe {
-        ScreenToClient(hwnd(), &mut client).ok();
+        let _ = ScreenToClient(hwnd(), &mut client).ok();
     }
 
     let focused = unsafe { GetForegroundWindow() == hwnd() };

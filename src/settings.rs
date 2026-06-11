@@ -15,6 +15,8 @@ pub struct Settings {
     pub controller_wheel_open_delay: f32,
     #[serde(default = "default_spell_names")]
     pub spell_names: String,
+    #[serde(default = "default_text_shadows")]
+    pub text_shadows: bool,
     #[serde(default = "default_font_scale_multiplier")]
     pub font_scale_multiplier: f32,
     #[serde(default = "default_icon_scale_multiplier")]
@@ -25,6 +27,8 @@ pub struct Settings {
     pub min_radius: f32,
     #[serde(default = "default_modded_spells")]
     pub modded_spells: Vec<String>,
+    #[serde(default = "default_await_xinput_hook")]
+    pub await_xinput_hook: bool,
     #[serde(default = "default_debugging")]
     pub debugging: bool,
     #[serde(default = "default_timing_offset")]
@@ -47,6 +51,10 @@ pub fn default_spell_names() -> String {
     "show".to_string()
 }
 
+pub const fn default_text_shadows() -> bool {
+    true
+}
+
 pub const fn default_debugging() -> bool {
     false
 }
@@ -67,6 +75,10 @@ pub fn default_modded_spells() -> Vec<String> {
     Vec::new()
 }
 
+pub const fn default_await_xinput_hook() -> bool {
+    false
+}
+
 pub const fn default_min_radius() -> f32 {
     0.3
 }
@@ -82,11 +94,13 @@ impl Default for Settings {
             using_controller: default_using_controller(),
             controller_wheel_open_delay: default_controller_wheel_open_delay(),
             spell_names: default_spell_names(),
+            text_shadows: default_text_shadows(),
             debugging: default_debugging(),
             font_scale_multiplier: default_font_scale_multiplier(),
             icon_scale_multiplier: default_icon_scale_multiplier(),
             radius_multiplier: default_radius_multiplier(),
             modded_spells: default_modded_spells(),
+            await_xinput_hook: default_await_xinput_hook(),
             min_radius: default_min_radius(),
             timing_offset: default_timing_offset(),
         }

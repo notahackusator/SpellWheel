@@ -3,12 +3,15 @@ use std::sync::{Arc, RwLock};
 use lazy_static::lazy_static;
 use retour::static_detour;
 use windows::core::s;
+use windows::Win32::Foundation::ERROR_DEVICE_NOT_CONNECTED;
 use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
-use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD, XINPUT_STATE};
+use windows::Win32::UI::Input::XboxController::{XInputGetCapabilities, XINPUT_FLAG_ALL, XINPUT_GAMEPAD, XINPUT_STATE};
 use crate::debugging::{add_to_screen_debug, is_debugging};
+use crate::settings::Settings;
 
 // Lazy static to prevent bullshittery
 lazy_static!(
+    static ref HOOKED: AtomicBool = AtomicBool::new(false);
     static ref SUPPRESS_CAMERA: AtomicBool = AtomicBool::new(false);
     static ref HOOKED_STATE: Arc<RwLock<XINPUT_STATE>> = Arc::new(RwLock::default());
 );
@@ -52,12 +55,28 @@ fn hooked_xinput_get_state(
 }
 
 pub fn install_xinput_hook() -> bool {
+    let gamepad_status = unsafe {
+        XInputGetCapabilities(0, XINPUT_FLAG_ALL, &mut Default::default())
+    };
+    if is_debugging() {
+        add_to_screen_debug(format!("Gamepad status: {gamepad_status}"));
+    }
+    if HOOKED.load(Ordering::Relaxed) {
+        return false;
+    }
+    // Awaits XInput capabilities if enabled in settings
+    if Settings::read_or_default().await_xinput_hook && gamepad_status == ERROR_DEVICE_NOT_CONNECTED.0 {
+        return false;
+    }
+    tracing::info!("Hooking XInput DLL's");
     unsafe {
         let modules = [
             LoadLibraryA(s!("xinput1_4.dll")),
             LoadLibraryA(s!("xinput1_3.dll")),
             LoadLibraryA(s!("xinput9_1_0.dll")),
         ];
+
+        HOOKED.store(true, Ordering::Relaxed);
 
         for (i, module) in modules.into_iter().enumerate() {
             match module {

@@ -14,6 +14,9 @@ controller_wheel_open_delay = 0.5
 # and "hide" to hide them completely. Default is "show"
 spell_names = "show"
 
+# Whether text shadows are enabled. Default is true.
+text_shadows = true
+
 # The amount to scale the spell name font size. Default is 1.
 font_scale_multiplier = 1.0
 
@@ -34,3 +37,6 @@ min_radius = 0.3
 # If you want multiple modded spell files, you can have that too: ["ModdedSpells1.json", "ModdedSpells2.json"]
 # For mod creators who want to write such JSON files, read the documentation in the GitHub repo for more info: https://github.com/notahackusator/SpellWheel
 modded_spells = []
+
+# Waits before hooking into controller inputs.
+await_xinput_hook = false
