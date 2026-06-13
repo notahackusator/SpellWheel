@@ -13,20 +13,21 @@ pub mod await_seamless;
 pub mod display_spell;
 pub mod mouse;
 pub mod hwindow;
+pub mod dynamic_icons;
 
 use std::fs::File;
 use std::mem;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository, WorldChrManDbg};
+use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, EquipParamGoods, GameDataMan, Magic, SoloParam, SoloParamRepository, WorldChrManDbg};
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use lazy_static::lazy_static;
 use tracing_subscriber::fmt;
 use crate::await_seamless::{await_seamless, is_seamless_coop_active};
-use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
+use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, log_all, run_every, run_once};
 use crate::gamepad::GamepadState;
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
@@ -206,7 +207,7 @@ fn tick(_fd4: &FD4TaskData) {
             return;
         };
 
-        let Some(param_repo) = unsafe { SoloParamRepository::instance() }.ok() else {
+        let Some(param_repo) = unsafe { SoloParamRepository::instance_mut() }.ok() else {
             return;
         };
 
@@ -244,6 +245,18 @@ fn tick(_fd4: &FD4TaskData) {
             if let Some(spell) = Spell::try_new(index as i32, id) {
                 equipped_spells.push(spell);
             }
+        }
+        if is_debugging() {
+            equipped_spells.iter().for_each(|spell| {
+                let icon_id = param_repo.get::<EquipParamGoods>(spell.id())
+                    .map(|goods| goods.icon_id());
+                add_to_screen_debug(format!("{}={:?}", spell.id(), icon_id));
+            });
+            // run_once!("goods" => {
+            //     unsafe { log_all::<EquipParamGoods>(param_repo); }
+            // });
+            // let goods_file = param_repo.solo_param_holders[EquipParamGoods::INDEX as usize].get_res_cap(0).unwrap()
+            //     .param_res_cap.data;
         }
         if is_debugging() {
             add_to_screen_debug(format!("Equipped spells: {equipped_spells:?}"));

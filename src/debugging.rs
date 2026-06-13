@@ -4,8 +4,9 @@ use std::time::{Duration, Instant};
 use eldenring::cs::{Magic, SoloParam, SoloParamRepository};
 use eldenring::fd4::ParamFile;
 use lazy_static::lazy_static;
+use pmod::fmg::MsgRepository;
 use crate::settings::Settings;
-use crate::spells::Spell;
+use crate::spells::{read_utf16_string, Spell};
 
 #[allow(unused)]
 pub unsafe fn hacked_lookup_table_lol(metadata: &ParamFileMetadata) -> &[[u32; 2]] {
@@ -32,6 +33,28 @@ pub unsafe fn metadata_ptr(data: &ParamFile) -> &ParamFileMetadata {
     let ptr = (data as *const ParamFile).byte_sub(size_of::<ParamFileMetadata>())
         as *const ParamFileMetadata;
     &*ptr
+}
+
+pub unsafe fn name_candidates(param_id: u32) -> Vec<String> {
+    let mut out = vec![];
+    for i in 0..512 {
+        if let Some(str) = read_utf16_string(MsgRepository::get_msg(
+            0, i, param_id
+        )) {
+            out.push(format!("{i}: {str}"));
+        }
+    }
+    out
+}
+
+#[allow(unused)]
+pub unsafe fn log_all<P: SoloParam>(param_repo: &mut SoloParamRepository) {
+    let data = &param_repo.solo_param_holders[P::INDEX as usize].get_res_cap(0).unwrap()
+        .param_res_cap.data;
+    let lookup_table = hacked_lookup_table_lol(metadata_ptr(data));
+    for &[param_id, _] in lookup_table.iter() {
+        tracing::info!("{param_id}={:?}", name_candidates(param_id));
+    }
 }
 
 #[allow(unused)]

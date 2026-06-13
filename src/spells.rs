@@ -43,7 +43,7 @@ impl Spell {
     }
 }
 
-unsafe fn read_utf16_string(ptr: Option<NonNull<u16>>) -> Option<String> {
+pub unsafe fn read_utf16_string(ptr: Option<NonNull<u16>>) -> Option<String> {
     ptr.map(|ptr| {
         let mut len = 0;
         let mut p = ptr.as_ptr();

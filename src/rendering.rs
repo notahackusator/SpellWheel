@@ -10,7 +10,7 @@ use crate::{guard, hmodule, paths, set_selected_spell_index, Spell, HWND};
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::display_spell::DisplaySpell;
 use crate::hwindow::{get_process_window, get_window_size};
-use crate::icons::IconManager;
+use crate::icons::icon_manager::IconManager;
 use crate::settings::Settings;
 
 static mut INIT: bool = false;

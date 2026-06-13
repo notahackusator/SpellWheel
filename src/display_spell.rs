@@ -1,5 +1,5 @@
 use crate::debugging::{add_to_screen_debug, is_debugging, read_committed_screen_debug};
-use crate::icons::IconManager;
+use crate::icons::icon_manager::IconManager;
 use crate::settings::{Settings, SpellNames};
 use crate::spells::Spell;
 use crate::gamepad_state;

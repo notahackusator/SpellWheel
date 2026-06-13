@@ -22,6 +22,13 @@ pub fn mods() -> PathBuf {
     dll().parent().unwrap()
         .to_path_buf()
 }
+
+#[cached]
+pub fn game() -> PathBuf {
+    mods().parent().unwrap()
+        .to_path_buf()
+}
+
 #[cached]
 pub fn spellwheel() -> PathBuf {
     mods()
