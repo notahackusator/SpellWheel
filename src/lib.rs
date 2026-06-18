@@ -14,6 +14,7 @@ pub mod display_spell;
 pub mod mouse;
 pub mod hwindow;
 pub mod dynamic_icons;
+pub mod util;
 
 use std::fs::File;
 use std::mem;
@@ -27,7 +28,7 @@ use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use lazy_static::lazy_static;
 use tracing_subscriber::fmt;
 use crate::await_seamless::{await_seamless, is_seamless_coop_active};
-use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, log_all, run_every, run_once};
+use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
 use crate::gamepad::GamepadState;
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
@@ -123,6 +124,7 @@ macro_rules! guard {
 }
 
 fn start() {
+    tracing::info!("DLL Path: {:?}", paths::dll());
     tracing::info!("Awaiting system init");
     wait_for_system_init(&Program::current(), Duration::MAX)
         .expect("Could not await system init.");
@@ -242,21 +244,9 @@ fn tick(_fd4: &FD4TaskData) {
         let data = &game_data_man.main_player_game_data.equipment.equip_magic_data;
         for (index, spell) in data.entries.iter().enumerate() {
             let id = spell.param_id as u32;
-            if let Some(spell) = Spell::try_new(index as i32, id) {
+            if let Some(spell) = Spell::try_new(param_repo, index as i32, id) {
                 equipped_spells.push(spell);
             }
-        }
-        if is_debugging() {
-            equipped_spells.iter().for_each(|spell| {
-                let icon_id = param_repo.get::<EquipParamGoods>(spell.id())
-                    .map(|goods| goods.icon_id());
-                add_to_screen_debug(format!("{}={:?}", spell.id(), icon_id));
-            });
-            // run_once!("goods" => {
-            //     unsafe { log_all::<EquipParamGoods>(param_repo); }
-            // });
-            // let goods_file = param_repo.solo_param_holders[EquipParamGoods::INDEX as usize].get_res_cap(0).unwrap()
-            //     .param_res_cap.data;
         }
         if is_debugging() {
             add_to_screen_debug(format!("Equipped spells: {equipped_spells:?}"));

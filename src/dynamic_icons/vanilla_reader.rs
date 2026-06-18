@@ -6,6 +6,7 @@ use fstools_formats::tpf::TPF;
 use std::io::{Cursor, Read};
 
 pub fn read() -> anyhow::Result<TPF> {
+    todo!();
     let paths = [
         paths::game().join("Data0").with_extension("bhd"),
         paths::game().join("Data0").with_extension("bdt")

@@ -3,20 +3,17 @@ pub mod json_loader;
 pub mod modengine_loader;
 pub mod modded_loader;
 
-use hudhook::RenderContext;
 use imgui::TextureId;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
 use serde::Deserialize;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AtlasIcon {
-    texture_id: TextureId,
-    rect: [f32; 4],
+    pub texture_id: TextureId,
+    pub rect: [f32; 4],
 }
 
 #[derive(Deserialize)]
-struct ModdedSpell {
-    id: u32,
-    path_to_icon: String,
+pub struct ModdedSpell {
+    pub id: u32,
+    pub path_to_icon: String,
 }

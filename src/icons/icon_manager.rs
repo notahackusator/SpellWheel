@@ -1,17 +1,15 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::read_to_string;
-use std::path::Path;
 use std::sync::OnceLock;
 use imgui::TextureId;
-use fstools_formats::bnd4::BND4;
 use hudhook::RenderContext;
 use lazy_static::lazy_static;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use crate::dynamic_icons::modded_reader;
-use crate::icons::{json_loader, modded_loader, AtlasIcon, ModdedSpell};
+use crate::icons::{json_loader, modded_loader, AtlasIcon};
 use crate::paths;
 use crate::settings::Settings;
+use crate::spells::Spell;
 
 lazy_static!(
     static ref ICON_MANAGER: OnceLock<IconManager> = OnceLock::new();
@@ -28,28 +26,28 @@ pub enum IconResult {
 pub struct IconManager {
     spell_icons: HashMap<u32, TextureId>,
     json_modded_spell: HashMap<u32, TextureId>,
-    dir_modded_spells: HashMap<u32, AtlasIcon>,
+    dir_modded_spells: HashMap<u16, AtlasIcon>,
 }
 
 impl IconManager {
-    pub fn get(spell_id: u32) -> IconResult {
+    pub fn get(spell: &Spell) -> IconResult {
         match ICON_MANAGER.get() {
-            Some(manager) => manager.get_inner(spell_id),
+            Some(manager) => manager.get_inner(spell),
             None => IconResult::None,
         }
     }
     
-    fn get_inner(&self, spell_id: u32) -> IconResult {
-        if let Some(&ai) = self.dir_modded_spells.get(&spell_id) {
+    fn get_inner(&self, spell: &Spell) -> IconResult {
+        if let Some(&ai) = self.dir_modded_spells.get(&spell.icon_id()) {
             return IconResult::Atlas(ai);
         }
-        if let Some(&id) = self.json_modded_spell.get(&spell_id).or(self.spell_icons.get(&spell_id)) {
+        if let Some(&id) = self.json_modded_spell.get(&spell.id()).or(self.spell_icons.get(&spell.id())) {
             return IconResult::Id(id);
         }
         IconResult::None
     }
 
-    fn load_modded_spells(render_context: &mut dyn RenderContext) -> (HashMap<u32, TextureId>, HashMap<u32, AtlasIcon>) {
+    fn load_modded_spells(render_context: &mut dyn RenderContext) -> (HashMap<u32, TextureId>, HashMap<u16, AtlasIcon>) {
         let mut json_modded_spells = HashMap::new();
         let mut dir_modded_spells = HashMap::new();
         for modded_spells in Settings::read_or_default().modded_spells {
@@ -57,18 +55,20 @@ impl IconManager {
                 match read_to_string(paths::spell_icons().join(&modded_spells)) {
                     Ok(json) => {
                         if let Err(err) = json_loader::load_modded_spells(&mut json_modded_spells, render_context, &json) {
-                            tracing::error!("Error loading modded spells '{modded_spells}': {err}");
+                            tracing::error!("Error loading modded spells '{modded_spells}': {err:?}");
                         }
                     }
                     Err(err) => {
-                        tracing::error!("Error trying to load modded spells '{modded_spells}': {err}");
+                        tracing::error!("Error trying to load modded spells '{modded_spells}': {err:?}");
                     }
                 }
             } else if modded_spells.ends_with(".toml") {
                 todo!()
             } else {
                 if let Err(err) = modded_loader::load_modded_spells(&mut dir_modded_spells, render_context, &modded_spells) {
-                    tracing::error!("Error loading modded spells '{modded_spells}': {err}");
+                    tracing::error!("Error loading modded spells '{modded_spells}': {err:?}");
+                } else {
+                    tracing::info!("Modded spells: {dir_modded_spells:?}");
                 }
             }
         }

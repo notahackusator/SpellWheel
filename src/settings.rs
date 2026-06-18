@@ -129,14 +129,14 @@ lazy_static!(
     static ref SETTINGS_CACHE: Arc<RwLock<Settings>> = Arc::new(RwLock::new(Settings::default()));
 );
 impl Settings {
-    pub fn open_toml() -> Option<Self> {
-        toml::from_str(&read_to_string(paths::settings()).ok()?).ok()
+    pub fn open_toml() -> anyhow::Result<Self> {
+        toml::from_str(&read_to_string(paths::settings())?).map_err(anyhow::Error::new)
     }
 
     pub fn read_or_default() -> Self {
         run_every!("Settings::read_or_default" every Duration::from_secs(1) => {
-            let settings = Self::open_toml().unwrap_or_else(|| {
-                tracing::error!("Could not open settings TOML, using default settings instead");
+            let settings = Self::open_toml().unwrap_or_else(|err| {
+                tracing::error!("Could not open settings TOML, using default settings instead: {err}");
                 Settings::default()
             });
             *SETTINGS_CACHE.write().expect("Could not acquire settings cache") = settings.clone();

@@ -14,7 +14,7 @@ pub fn load_modded_spell(all_modded_spells: &mut HashMap<u32, TextureId>,
 
 pub fn load_modded_spells(all_modded_spells: &mut HashMap<u32, TextureId>,
                           render_context: &mut dyn RenderContext, json: &str) -> anyhow::Result<()> {
-    let json: Vec<ModdedSpell> = serde_json::from_str(&json)?;
+    let json: Vec<ModdedSpell> = serde_json::from_str(json)?;
     for modded_spell in json {
         if let Err(err) = load_modded_spell(all_modded_spells, render_context, &modded_spell) {
             tracing::error!("Error loading modded spell {}: {}", modded_spell.id, err)

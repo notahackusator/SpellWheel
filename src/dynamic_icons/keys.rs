@@ -13,7 +13,7 @@ impl ArchiveKeyProvider for KeyProvider {
     }
 }
 
-const DATA0: &'static str = "-----BEGIN RSA PUBLIC KEY-----
+const DATA0: &str = "-----BEGIN RSA PUBLIC KEY-----
 MIIBCwKCAQEA9Rju2whruXDVQZpfylVEPeNxm7XgMHcDyaaRUIpXQE0qEo+6Y36L
 P0xpFvL0H0kKxHwpuISsdgrnMHJ/yj4S61MWzhO8y4BQbw/zJehhDSRCecFJmFBz
 3I2JC5FCjoK+82xd9xM5XXdfsdBzRiSghuIHL4qk2WZ/0f/nK5VygeWXn/oLeYBL

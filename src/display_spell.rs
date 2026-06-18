@@ -1,15 +1,16 @@
 use crate::debugging::{add_to_screen_debug, is_debugging, read_committed_screen_debug};
-use crate::icons::icon_manager::IconManager;
+use crate::gamepad_state;
+use crate::hwindow::get_window_size;
+use crate::icons::icon_manager::{IconManager, IconResult};
+use crate::mouse::get_mouse_state;
 use crate::settings::{Settings, SpellNames};
 use crate::spells::Spell;
-use crate::gamepad_state;
-use imgui::{DrawListMut, TextureId, Ui};
-use crate::hwindow::get_window_size;
-use crate::mouse::get_mouse_state;
+use imgui::{DrawListMut, Ui};
+use crate::icons::AtlasIcon;
 
 pub struct DisplaySpell {
     pub index: i32,
-    pub texture_id: Option<TextureId>,
+    pub icon: IconResult,
     pub spell_name: WrappedText,
     pub is_highlighted: bool,
     pub angle: f32,
@@ -136,12 +137,12 @@ impl DisplaySpell {
                 let thickness = ((max_dx * 2.0).powi(2) + (max_dy * 2.0).powi(2)).sqrt();
 
                 let index = spell.index();
-                let texture_id = IconManager::get(spell.id());
+                let icon = IconManager::get(spell);
                 let is_highlighted = false;
 
                 DisplaySpell {
                     index,
-                    texture_id,
+                    icon,
                     spell_name,
                     is_highlighted,
                     angle,
@@ -306,13 +307,24 @@ impl DisplaySpell {
                 self.spell_name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), true, settings.text_shadows);
             }
         }
-        match self.texture_id {
-            Some(texture_id) => draw_list.add_image(
+        match self.icon {
+            IconResult::Atlas(AtlasIcon { texture_id, rect }) => {
+                let [x, y, w, h] = rect;
+                draw_list.add_image(
+                    texture_id,
+                    self.img_c1,
+                    self.img_c2,
+                )
+                    .uv_min([x, y])
+                    .uv_max([x + w, y + h])
+                    .build()
+            },
+            IconResult::Id(texture_id) => draw_list.add_image(
                 texture_id,
                 self.img_c1,
                 self.img_c2
             ).build(),
-            None => draw_list.add_rect(
+            IconResult::None => draw_list.add_rect(
                 self.img_c1,
                 self.img_c2,
                 [0.5, 0.5, 0.5, 1.0]

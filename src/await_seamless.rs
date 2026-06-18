@@ -6,7 +6,7 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleA;
 
 pub fn is_seamless_coop_active() -> bool {
     unsafe {
-        !GetModuleHandleA(s!("elden_ring_seamless_coop.dll")).is_ok()
+        GetModuleHandleA(s!("elden_ring_seamless_coop.dll")).is_err()
     }
 }
 

@@ -1,18 +1,25 @@
 use std::ptr::NonNull;
+use eldenring::cs::{EquipParamGoods, SoloParamRepository};
 use pmod::fmg::MsgRepository;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Spell {
     index: i32,
     id: u32,
+    icon_id: u16,
     name: String,
 }
 
 impl Spell {
-    pub fn try_new(index: i32, id: u32) -> Option<Self> {
-        Self::get_name(id).map(|name| Self {
+    pub fn try_new(param_repo: &SoloParamRepository, index: i32, id: u32) -> Option<Self> {
+        let icon_id = param_repo.get::<EquipParamGoods>(id)
+            .map(|goods| goods.icon_id())?;
+        let name = Self::get_name(id)?;
+        
+        Some(Self {
             index,
             id,
+            icon_id,
             name
         })
     }
@@ -23,6 +30,10 @@ impl Spell {
 
     pub fn id(&self) -> u32 {
         self.id
+    }
+    
+    pub fn icon_id(&self) -> u16 {
+        self.icon_id
     }
 
     pub fn name(&self) -> &str {
