@@ -10,6 +10,7 @@ use fstools_formats::bnd4::BND4Entry;
 use imgui::TextureId;
 use roxmltree::Node;
 use regex::Regex;
+use crate::icons::atlas::Atlas;
 use crate::util::AddSpan;
 
 pub fn parse_bnd_and_tpf(dir_modded_spells: &mut HashMap<u16, AtlasIcon>,
@@ -22,7 +23,7 @@ pub fn parse_bnd_and_tpf(dir_modded_spells: &mut HashMap<u16, AtlasIcon>,
     Ok(())
 }
 
-fn parse_entry(dir_modded_spells: &mut HashMap<u16, AtlasIcon>, read_success: &ReadSuccess, atlases: &HashMap<String, TextureId>, entry: &BND4Entry) -> anyhow::Result<()> {
+fn parse_entry(dir_modded_spells: &mut HashMap<u16, AtlasIcon>, read_success: &ReadSuccess, atlases: &HashMap<String, Atlas>, entry: &BND4Entry) -> anyhow::Result<()> {
     let xml_bytes = read_success.bnd.file_bytes(entry);
     let xml_str = std::str::from_utf8(xml_bytes).add_span()?;
 
@@ -34,38 +35,26 @@ fn parse_entry(dir_modded_spells: &mut HashMap<u16, AtlasIcon>, read_success: &R
         .ok_or(Error::new(ErrorKind::NotFound, "no imagePath attribute")).add_span()?;
 
     let atlas_name = image_path.trim_end_matches(".png");
-    let Some(&atlas) = atlases.get(atlas_name) else {
+    let Some(atlas) = atlases.get(atlas_name) else {
         tracing::info!("Skipping imagePath ({atlas_name}), not mapped to any atlas");
         return Ok(());
     };
 
     // Parses each subtexture (icon)
-    for n in doc.descendants().filter(|n| n.has_tag_name("SubTexture")) {
-        if let Err(err) = parse_node(dir_modded_spells, atlas_name, atlas, n).add_span() {
+    for node in doc.descendants().filter(|node| node.has_tag_name("SubTexture")) {
+        if let Err(err) = parse_node(dir_modded_spells, atlas, node).add_span() {
             tracing::error!("Error loading directory modded spell: {err:?}");
         }
     }
     Ok(())
 }
 
-fn parse_node(dir_modded_spells: &mut HashMap<u16, AtlasIcon>, atlas_name: &str, atlas: TextureId, n: Node) -> anyhow::Result<()> {
+fn parse_node(dir_modded_spells: &mut HashMap<u16, AtlasIcon>, atlas: &Atlas, node: Node) -> anyhow::Result<()> {
     // creates the icon
-    let icon = AtlasIcon {
-        texture_id: atlas,
-        rect: [
-            n.attribute("x").ok_or(Error::new(
-                ErrorKind::NotFound, format!("No 'x' element in subtexture of {}", atlas_name))).add_span()?.parse().add_span()?,
-            n.attribute("y").ok_or(Error::new(
-                ErrorKind::NotFound, format!("No 'y' element in subtexture of {}", atlas_name))).add_span()?.parse().add_span()?,
-            n.attribute("width").ok_or(Error::new(
-                ErrorKind::NotFound, format!("No 'width' element in subtexture of {}", atlas_name))).add_span()?.parse().add_span()?,
-            n.attribute("height").ok_or(Error::new(
-                ErrorKind::NotFound, format!("No 'height' element in subtexture of {}", atlas_name))).add_span()?.parse().add_span()?,
-        ]
-    };
+    let icon = AtlasIcon::try_from_xml(&atlas, &node).add_span()?;
 
     // parses the item id
-    let raw_name = n.attribute("name").unwrap().to_string();
+    let raw_name = node.attribute("name").unwrap().to_string();
     if !raw_name.contains("MENU_ItemIcon") {
         return Ok(());
     }
@@ -84,7 +73,7 @@ fn parse_node(dir_modded_spells: &mut HashMap<u16, AtlasIcon>, atlas_name: &str,
     Ok(())
 }
 
-fn parse_atlases(render_context: &mut dyn RenderContext, read_success: &mut ReadSuccess) -> anyhow::Result<HashMap<String, TextureId>> {
+fn parse_atlases(render_context: &mut dyn RenderContext, read_success: &mut ReadSuccess) -> anyhow::Result<HashMap<String, Atlas>> {
     let mut atlases = HashMap::new();
 
     // Converts TPF to atlases
@@ -96,6 +85,8 @@ fn parse_atlases(render_context: &mut dyn RenderContext, read_success: &mut Read
         // Converts to image
         let surface = image_dds::Surface::from_dds(&dds)?;
         let icon = surface.decode_rgba8().add_span()?;
+        let width = icon.width;
+        let height = icon.height;
 
         // if is_debugging() {
         //     image::save_buffer(paths::mods().join(format!("{}.png", texture.name)),
@@ -103,8 +94,8 @@ fn parse_atlases(render_context: &mut dyn RenderContext, read_success: &mut Read
         // }
 
         // Stores atlas
-        let texture_id = render_context.load_texture(&icon.data, icon.width, icon.height).add_span()?;
-        atlases.insert(texture.name.clone(), texture_id);
+        let texture_id = render_context.load_texture(&icon.data, width, height).add_span()?;
+        atlases.insert(texture.name.clone(), Atlas::new(texture.name.clone(), texture_id, width, height));
     }
     Ok(atlases)
 }
