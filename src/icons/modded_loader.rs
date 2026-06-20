@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
 use std::path::Path;
 use fstools_formats::bnd4::BND4Entry;
-use imgui::TextureId;
 use roxmltree::Node;
 use regex::Regex;
 use crate::icons::atlas::Atlas;

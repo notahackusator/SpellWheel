@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::fs::read_to_string;
 use std::sync::OnceLock;
@@ -6,6 +6,7 @@ use imgui::TextureId;
 use hudhook::RenderContext;
 use lazy_static::lazy_static;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use crate::dynamic_icons::modded_reader;
 use crate::icons::{json_loader, modded_loader, AtlasIcon};
 use crate::paths;
 use crate::settings::Settings;
@@ -47,32 +48,54 @@ impl IconManager {
         IconResult::None
     }
 
-    fn load_modded_spells(render_context: &mut dyn RenderContext) -> (HashMap<u32, TextureId>, HashMap<u16, AtlasIcon>) {
+    fn load_from_json(render_context: &mut dyn RenderContext) -> HashMap<u32, TextureId> {
         let mut json_modded_spells = HashMap::new();
-        let mut dir_modded_spells = HashMap::new();
-        for modded_spells in Settings::read_or_default().modded_spells {
-            if modded_spells.ends_with(".json") {
-                match read_to_string(paths::spell_icons().join(&modded_spells)) {
-                    Ok(json) => {
-                        if let Err(err) = json_loader::load_modded_spells(&mut json_modded_spells, render_context, &json) {
-                            tracing::error!("Error loading modded spells '{modded_spells}': {err:?}");
-                        }
-                    }
-                    Err(err) => {
-                        tracing::error!("Error trying to load modded spells '{modded_spells}': {err:?}");
+        for modded_spells_path in Settings::read_or_default().modded_spells {
+            if !modded_spells_path.ends_with(".json") {
+                continue;
+            }
+
+            match read_to_string(paths::spell_icons().join(&modded_spells_path)) {
+                Ok(json) => {
+                    if let Err(err) = json_loader::load_modded_spells(&mut json_modded_spells, render_context, &json) {
+                        tracing::error!("Error loading modded spells '{modded_spells_path}': {err:?}");
                     }
                 }
-            } else if modded_spells.ends_with(".toml") {
-                todo!()
-            } else {
-                if let Err(err) = modded_loader::load_modded_spells(&mut dir_modded_spells, render_context, &modded_spells) {
-                    tracing::error!("Error loading modded spells '{modded_spells}': {err:?}");
-                } else {
-                    tracing::info!("Modded spells: {dir_modded_spells:?}");
+                Err(err) => {
+                    tracing::error!("Error trying to load modded spells '{modded_spells_path}': {err:?}");
                 }
             }
         }
-        (json_modded_spells, dir_modded_spells)
+        json_modded_spells
+    }
+
+    fn load_from_directories(render_context: &mut dyn RenderContext) -> HashMap<u16, AtlasIcon> {
+        let mut dir_modded_spells = HashMap::new();
+
+        let mut paths = HashSet::new();
+        for modded_spells_path in Settings::read_or_default().modded_spells {
+            if modded_spells_path.contains(".") {
+                continue;
+            }
+
+            paths.insert(modded_spells_path.into());
+        }
+        if let Some(upstream_mod_folder) = modded_reader::search_for_mod_folder() {
+            tracing::info!("Found upstream mod folder: {upstream_mod_folder:?}");
+            paths.insert(upstream_mod_folder);
+        }
+
+        for modded_spells_path in paths {
+            if let Err(err) = modded_loader::load_modded_spells(&mut dir_modded_spells, render_context, &modded_spells_path) {
+                tracing::error!("Error loading modded spells '{modded_spells_path:?}': {err:?}");
+            }
+        }
+
+        dir_modded_spells
+    }
+
+    fn load_modded_spells(render_context: &mut dyn RenderContext) -> (HashMap<u32, TextureId>, HashMap<u16, AtlasIcon>) {
+        (Self::load_from_json(render_context), Self::load_from_directories(render_context))
     }
     
     pub fn load(render_context: &mut dyn RenderContext) {

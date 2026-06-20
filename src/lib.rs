@@ -21,7 +21,7 @@ use std::mem;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, EquipParamGoods, GameDataMan, Magic, SoloParam, SoloParamRepository, WorldChrManDbg};
+use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository, WorldChrManDbg};
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
