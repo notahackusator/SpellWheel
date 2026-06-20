@@ -31,11 +31,15 @@ radius_multiplier = 0.3
 # Default is 0.3.
 min_radius = 0.3
 
-# Paths to JSON files for modded spells. Empty by default. The path is relative to Game/mods/spellwheel/icons, so for example,
-# if you want to reference a JSON file that's in ELDEN RING/Game/mods/spellwheel/icons/MyModdedSpells.json, you'd write ['MyModdedSpells.json'],
-# or if you want to reference a JSON file that's in ELDEN RING/Game/custom spells/MyModdedSpells.json, you'd write ['../../../custom spells/MyModdedSpells.json']
-# If you want multiple modded spell files, you can have that too: ['ModdedSpells1.json', 'ModdedSpells2.json']
-# For mod creators who want to write such JSON files, read the documentation in the GitHub repo for more info: https://github.com/notahackusator/SpellWheel
+# Paths to JSON files / directories for modded spells. Empty by default.
+# The path is relative to Game/mods/spellwheel/icons.
+# If you want multiple modded spell files, you can have that too: ['path/to/mod1', 'path/to/mod2']
+# JSON files are deprecated, but you can still create them: https://github.com/notahackusator/SpellWheel
+#
+# The intended way is to point to a directory containing a mod/menu/hi path,
+# where the hi folder contains 01_common.sblytbnd.dcx and 01_common.tpf.dcx, which are game icon files.
+#
+# For Convergence / ERR support, read the mod description.
 modded_spells = []
 
 # Waits before hooking into controller inputs.
