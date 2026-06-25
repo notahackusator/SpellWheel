@@ -1,15 +1,17 @@
 pub mod icon_manager;
-pub mod json_loader;
 pub mod modengine_loader;
 pub mod modded_loader;
 pub mod atlas;
+pub mod await_graphics;
+mod generic_loader;
+pub mod vanilla_loader;
 
-use std::io::{Error, ErrorKind};
+use crate::icons::atlas::AtlasTexture;
+use crate::util::AddSpan;
 use imgui::TextureId;
 use roxmltree::Node;
 use serde::Deserialize;
-use crate::icons::atlas::Atlas;
-use crate::util::AddSpan;
+use std::io::{Error, ErrorKind};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AtlasIcon {
@@ -18,42 +20,40 @@ pub struct AtlasIcon {
 }
 
 impl AtlasIcon {
-    pub fn try_from_xml(atlas: &Atlas, node: &Node) -> anyhow::Result<Self> {
-        let x: f32 = node.attribute("x").ok_or(Error::new(
-            ErrorKind::NotFound, format!("No 'x' element in subtexture of {}", atlas.name)))
+    pub fn try_parse_rect(node: &Node) -> anyhow::Result<[f32; 4]> {
+        let x: f32 = node.attribute("x")
+            .ok_or(Error::new(ErrorKind::NotFound, "No 'x' element".to_string()))
             .add_span()?
             .parse()
             .add_span()?;
-        let y: f32 = node.attribute("y").ok_or(Error::new(
-            ErrorKind::NotFound, format!("No 'y' element in subtexture of {}", atlas.name)))
+        let y: f32 = node.attribute("y")
+            .ok_or(Error::new(ErrorKind::NotFound, "No 'y' element".to_string()))
             .add_span()?
             .parse()
             .add_span()?;
-        let width: f32 = node.attribute("width").ok_or(Error::new(
-            ErrorKind::NotFound, format!("No 'width' element in subtexture of {}", atlas.name)))
+        let w: f32 = node.attribute("width")
+            .ok_or(Error::new(ErrorKind::NotFound, "No 'width' element".to_string()))
             .add_span()?
             .parse()
             .add_span()?;
-        let height: f32 = node.attribute("height").ok_or(Error::new(
-            ErrorKind::NotFound, format!("No 'height' element in subtexture of {}", atlas.name)))
+        let h: f32 = node.attribute("height")
+            .ok_or(Error::new(ErrorKind::NotFound, "No 'height' element".to_string()))
             .add_span()?
             .parse()
             .add_span()?;
 
+        Ok([x, y, w, h])
+    }
+
+    pub fn from_geometry(atlas_texture: &AtlasTexture, rect: [f32; 4]) -> anyhow::Result<Self> {
         Ok(AtlasIcon {
-            texture_id: atlas.texture_id,
+            texture_id: atlas_texture.texture_id,
             rect: [
-                x / atlas.width as f32,
-                y / atlas.height as f32,
-                width / atlas.width as f32,
-                height / atlas.height as f32
+                rect[0] / atlas_texture.width as f32,
+                rect[1] / atlas_texture.height as f32,
+                rect[2] / atlas_texture.width as f32,
+                rect[3] / atlas_texture.height as f32
             ]
         })
     }
-}
-
-#[derive(Deserialize)]
-pub struct ModdedSpell {
-    pub id: u32,
-    pub path_to_icon: String,
 }

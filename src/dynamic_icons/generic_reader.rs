@@ -1,0 +1,27 @@
+use std::io::{Cursor, Read};
+use fstools_formats::dcx::DcxHeader;
+use fstools_formats::bnd4::BND4;
+use anyhow::Error;
+use fstools_formats::tpf::TPF;
+use crate::dynamic_icons::read_success::ReadSuccess;
+use crate::util::AddSpan;
+
+pub fn read(bnd_bytes: &[u8], tpf_bytes: &[u8]) -> anyhow::Result<ReadSuccess> {
+    let (_header, mut bnd_decoder) = DcxHeader::read(bnd_bytes)
+        .map_err(|e| anyhow::anyhow!("DCX read failed: {:?}", e)).add_span()?;
+    let (_header, mut tpf_decoder) = DcxHeader::read(tpf_bytes)
+        .map_err(|e| anyhow::anyhow!("DCX read failed: {:?}", e)).add_span()?;
+
+    let mut bnd_bytes = Vec::with_capacity(bnd_decoder.hint_size());
+    bnd_decoder.read_to_end(&mut bnd_bytes).add_span()?;
+    let mut tpf_bytes = Vec::with_capacity(bnd_decoder.hint_size());
+    tpf_decoder.read_to_end(&mut tpf_bytes).add_span()?;
+
+    let mut bnd_cursor = Cursor::new(bnd_bytes);
+    let mut tpf_cursor = Cursor::new(tpf_bytes);
+
+    let bnd = BND4::from_reader(&mut bnd_cursor).map_err(Error::new).add_span()?;
+    let tpf = TPF::from_reader(&mut tpf_cursor).map_err(Error::new).add_span()?;
+
+    Ok(ReadSuccess::new(bnd, tpf, tpf_cursor))
+}

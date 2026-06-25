@@ -30,6 +30,7 @@ use tracing_subscriber::fmt;
 use crate::await_seamless::{await_seamless, is_seamless_coop_active};
 use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
 use crate::gamepad::GamepadState;
+use crate::icons::icon_manager::IconManager;
 use crate::keyboard::is_player_selecting_spell;
 use crate::rendering::{try_init_rendering, SpellWheelData};
 use crate::settings::Settings;
@@ -125,6 +126,7 @@ macro_rules! guard {
 
 fn start() {
     tracing::info!("DLL Path: {:?}", paths::dll());
+    tracing::info!("Game Path: {:?}", paths::game());
     tracing::info!("Awaiting system init");
     wait_for_system_init(&Program::current(), Duration::MAX)
         .expect("Could not await system init.");
@@ -132,6 +134,9 @@ fn start() {
     if !Settings::read_or_default().await_xinput_hook {
         install_xinput_hook();
     }
+
+    tracing::info!("Initializing IconManager asynchronously");
+    std::thread::spawn(IconManager::init);
 
     tracing::info!("Init complete");
     let tasks = unsafe { CSTaskImp::instance() }.expect("Could not get CSTaskImp");

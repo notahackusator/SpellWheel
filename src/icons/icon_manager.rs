@@ -1,76 +1,50 @@
 use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::fs::read_to_string;
-use std::sync::OnceLock;
+use std::mem::take;
+use std::sync::{Arc, OnceLock, RwLock};
+use std::time::Instant;
 use imgui::TextureId;
 use hudhook::RenderContext;
 use lazy_static::lazy_static;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::dynamic_icons::modded_reader;
-use crate::icons::{json_loader, modded_loader, AtlasIcon};
-use crate::paths;
+use crate::icons::{modded_loader, vanilla_loader, AtlasIcon};
+use crate::icons::await_graphics::AwaitGraphics;
 use crate::settings::Settings;
 use crate::spells::Spell;
 
 lazy_static!(
-    static ref ICON_MANAGER: OnceLock<IconManager> = OnceLock::new();
+    static ref ICON_MANAGER: OnceLock<Arc<RwLock<IconManager>>> = OnceLock::new();
 );
 
-#[derive(Clone, Copy, Debug)]
-pub enum IconResult {
-    Id(TextureId),
-    Atlas(AtlasIcon),
-    None,
-}
-
-#[derive(Debug)]
 pub struct IconManager {
-    spell_icons: HashMap<u32, TextureId>,
-    json_modded_spell: HashMap<u32, TextureId>,
-    dir_modded_spells: HashMap<u16, AtlasIcon>,
+    await_graphics: Vec<AwaitGraphics>,
+    spell_icons: HashMap<u16, AtlasIcon>,
 }
 
 impl IconManager {
-    pub fn get(spell: &Spell) -> IconResult {
-        match ICON_MANAGER.get() {
-            Some(manager) => manager.get_inner(spell),
-            None => IconResult::None,
-        }
+    pub fn get(spell: &Spell) -> Option<AtlasIcon> {
+        ICON_MANAGER.get()
+            .and_then(|manager| manager.read().ok())
+            .and_then(|manager| manager.get_inner(spell))
     }
     
-    fn get_inner(&self, spell: &Spell) -> IconResult {
-        if let Some(&ai) = self.dir_modded_spells.get(&spell.icon_id()) {
-            return IconResult::Atlas(ai);
-        }
-        if let Some(&id) = self.json_modded_spell.get(&spell.id()).or(self.spell_icons.get(&spell.id())) {
-            return IconResult::Id(id);
-        }
-        IconResult::None
+    fn get_inner(&self, spell: &Spell) -> Option<AtlasIcon> {
+        self.spell_icons.get(&spell.icon_id()).cloned()
     }
 
-    fn load_from_json(render_context: &mut dyn RenderContext) -> HashMap<u32, TextureId> {
-        let mut json_modded_spells = HashMap::new();
-        for modded_spells_path in Settings::read_or_default().modded_spells {
-            if !modded_spells_path.ends_with(".json") {
-                continue;
-            }
-
-            match read_to_string(paths::spell_icons().join(&modded_spells_path)) {
-                Ok(json) => {
-                    if let Err(err) = json_loader::load_modded_spells(&mut json_modded_spells, render_context, &json) {
-                        tracing::error!("Error loading modded spells '{modded_spells_path}': {err:?}");
-                    }
-                }
-                Err(err) => {
-                    tracing::error!("Error trying to load modded spells '{modded_spells_path}': {err:?}");
-                }
-            }
+    pub fn init() {
+        if ICON_MANAGER.set(Arc::new(RwLock::new(Self::init_inner()))).is_ok() {
+            tracing::info!("IconManager initialization finished");
+        } else {
+            tracing::error!("IconManager was already initialized");
         }
-        json_modded_spells
     }
 
-    fn load_from_directories(render_context: &mut dyn RenderContext) -> HashMap<u16, AtlasIcon> {
-        let mut dir_modded_spells = HashMap::new();
+    fn init_inner() -> Self {
+        let mut await_graphics = vec![];
+
+        if let Err(err) = vanilla_loader::load_spells(&mut await_graphics) {
+            tracing::error!("Error loading vanilla spells: {err:?}");
+        }
 
         let mut paths = HashSet::new();
         for modded_spells_path in Settings::read_or_default().modded_spells {
@@ -86,66 +60,34 @@ impl IconManager {
         }
 
         for modded_spells_path in paths {
-            if let Err(err) = modded_loader::load_modded_spells(&mut dir_modded_spells, render_context, &modded_spells_path) {
+            if let Err(err) = modded_loader::load_spells(&mut await_graphics, &modded_spells_path) {
                 tracing::error!("Error loading modded spells '{modded_spells_path:?}': {err:?}");
             }
         }
 
-        dir_modded_spells
-    }
-
-    fn load_modded_spells(render_context: &mut dyn RenderContext) -> (HashMap<u32, TextureId>, HashMap<u16, AtlasIcon>) {
-        (Self::load_from_json(render_context), Self::load_from_directories(render_context))
+        Self {
+            await_graphics,
+            spell_icons: Default::default(),
+        }
     }
     
     pub fn load(render_context: &mut dyn RenderContext) {
         tracing::info!("Loading spell icons...");
-        ICON_MANAGER.set(Self::load_inner(render_context).expect("Could not load ImageManager"))
-            .expect("Could not load image manager");
+        ICON_MANAGER.get().expect("IconManager was never initialized")
+            .write()
+            .unwrap()
+            .load_inner(render_context);
+        tracing::info!("Finished loading spell icons");
     }
     
-    fn load_inner(render_context: &mut dyn RenderContext) -> Result<Self, String> {
-        // get the files
-        tracing::info!("  Files found");
-        let files = fs::read_dir(paths::spell_icons()).map_err(|err| err.to_string())?
-            .filter_map(|x| x.ok())
-            .collect::<Vec<_>>();
-        
-        let images = files.into_par_iter()
-            .filter_map(|file| {
-                // convert file name (OsString) to spell id (u32)
-                file.file_name().to_str()
-                    .and_then(|str| str.split(".").next())
-                    .and_then(
-                        |str| str.parse().ok().map(|spell_id| (
-                            spell_id, image::open(file.path())
-                        ))
-                    )
-            })
-            .collect::<Vec<_>>();
-        tracing::info!("  Images loaded");
-        
-        let spell_icons = HashMap::from_iter(
-            images.into_iter()
-                .filter_map(|(spell_id, img)|
-                    // try to bind the image
-                    img.ok()
-                        .and_then(
-                            |img| render_context.load_texture(img.as_bytes(), img.width(), img.height()).ok()
-                        )
-                        .map(|texture_id| (spell_id, texture_id))
-                )
-                .collect::<Vec<_>>()
-        );
-        tracing::info!("  Textures loaded");
-        tracing::info!("  Loading modded spells");
-        let (json_modded_spell, dir_modded_spells) = Self::load_modded_spells(render_context);
-        tracing::info!("Icons loaded");
-
-        Ok(Self {
-            spell_icons,
-            json_modded_spell,
-            dir_modded_spells,
-        })
+    fn load_inner(&mut self, render_context: &mut dyn RenderContext) {
+        let start = Instant::now();
+        for await_graphics in take(&mut self.await_graphics) {
+            if let Err(err) = await_graphics(render_context, &mut self.spell_icons) {
+                tracing::error!("Error loading icons: {err}");
+            }
+        }
+        let time = start.elapsed();
+        tracing::info!("Finished loading spells graphics in {time:?}");
     }
 }

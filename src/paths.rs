@@ -1,6 +1,7 @@
 use crate::hmodule;
 use cached::proc_macro::cached;
 use std::path::PathBuf;
+use std::ptr::null_mut;
 use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
 
 #[cached]
@@ -25,7 +26,21 @@ pub fn mods() -> PathBuf {
 
 #[cached]
 pub fn game() -> PathBuf {
-    mods().parent().unwrap()
+    let mut buf = vec![0u16; 260];
+    unsafe {
+        GetModuleFileNameW(
+            null_mut(),
+            buf.as_mut_ptr(),
+            buf.len() as u32,
+        )
+    };
+    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    PathBuf::from(String::from_utf16_lossy(&buf[..len]))
+}
+
+#[cached]
+pub fn game_directory() -> PathBuf {
+    game().parent().unwrap()
         .to_path_buf()
 }
 

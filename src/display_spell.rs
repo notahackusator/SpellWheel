@@ -1,16 +1,16 @@
 use crate::debugging::{add_to_screen_debug, is_debugging, read_committed_screen_debug};
 use crate::gamepad_state;
 use crate::hwindow::get_window_size;
-use crate::icons::icon_manager::{IconManager, IconResult};
+use crate::icons::icon_manager::IconManager;
+use crate::icons::AtlasIcon;
 use crate::mouse::get_mouse_state;
 use crate::settings::{Settings, SpellNames};
 use crate::spells::Spell;
 use imgui::{DrawListMut, Ui};
-use crate::icons::AtlasIcon;
 
 pub struct DisplaySpell {
     pub index: i32,
-    pub icon: IconResult,
+    pub icon: Option<AtlasIcon>,
     pub spell_name: WrappedText,
     pub is_highlighted: bool,
     pub angle: f32,
@@ -308,7 +308,7 @@ impl DisplaySpell {
             }
         }
         match self.icon {
-            IconResult::Atlas(AtlasIcon { texture_id, rect }) => {
+            Some(AtlasIcon { texture_id, rect }) => {
                 let [x, y, w, h] = rect;
                 draw_list.add_image(
                     texture_id,
@@ -319,12 +319,7 @@ impl DisplaySpell {
                     .uv_max([x + w, y + h])
                     .build()
             },
-            IconResult::Id(texture_id) => draw_list.add_image(
-                texture_id,
-                self.img_c1,
-                self.img_c2
-            ).build(),
-            IconResult::None => draw_list.add_rect(
+            None => draw_list.add_rect(
                 self.img_c1,
                 self.img_c2,
                 [0.5, 0.5, 0.5, 1.0]
