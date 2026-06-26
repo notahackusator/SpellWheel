@@ -3,6 +3,7 @@ use imgui::TextureId;
 pub struct Atlas {
     pub name: String,
     pub atlas_texture: Option<AtlasTexture>,
+    pub used: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,6 +18,7 @@ impl Atlas {
         Self {
             name,
             atlas_texture: None,
+            used: false,
         }
     }
     

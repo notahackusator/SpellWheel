@@ -52,6 +52,10 @@ fn parse_node(await_graphics: &mut Vec<AwaitGraphics>, atlas: Arc<Mutex<Atlas>>,
     if !raw_name.contains("MENU_ItemIcon") {
         return Ok(());
     }
+
+    // This prevents unnecessary atlases from loading
+    atlas.lock().unwrap().used = true;
+
     let id_regex = Regex::new("[0-9]+").add_span()?;
     let Some(id) = id_regex.find(&raw_name) else {
         return Ok(());
@@ -91,9 +95,13 @@ fn parse_atlases(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut Rea
         let atlas = Arc::new(Mutex::new(Atlas::new(texture.name.clone())));
         atlases.insert(texture.name.clone(), atlas.clone());
         await_graphics.push(Box::new(move |render_context, _| {
+            let mut atlas = atlas.lock().unwrap();
+            if !atlas.used {
+                return Ok(());
+            }
             // Stores atlas
             let texture_id = render_context.load_texture(&icon.data, width, height)?;
-            atlas.lock().unwrap().set_texture(texture_id, width, height);
+            atlas.set_texture(texture_id, width, height);
             Ok(())
         }));
     }

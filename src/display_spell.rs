@@ -171,9 +171,9 @@ impl DisplaySpell {
             false => Err(get_mouse_state().mouse_pos()),
         });
 
-        let [screen_w, screen_h] = get_window_size();
+        let [ww, wh] = get_window_size();
         let min_radius_sqr = (
-            settings.min_radius * settings.radius_multiplier * screen_w.min(screen_h)
+            settings.min_radius * settings.radius_multiplier * ww.min(wh)
         ).powi(2);
 
         // Only select closest IF far enough away from the center
@@ -192,22 +192,21 @@ impl DisplaySpell {
             }
         }
 
-        Self::draw_selector(draw_list, angle, can_select);
+        let img_dim = img_dim();
+        Self::draw_selector(&settings, ww, wh, img_dim, draw_list, angle, can_select);
 
         for spell in spells.iter() {
-            spell.draw(spells.len(), ui, draw_list);
+            spell.draw(&settings, ww, wh, img_dim, spells.len(), ui, draw_list);
         }
     }
 
-    pub fn draw_selector(draw_list: &DrawListMut, angle: f32, can_select: bool) {
-        let settings = Settings::read_or_default();
+    pub fn draw_selector(settings: &Settings, ww: f32, wh: f32, img_dim: f32, draw_list: &DrawListMut, angle: f32, can_select: bool) {
         if !settings.using_controller || !can_select {
             return;
         }
 
-        let [ww, wh] = get_window_size();
         let thickness = ww.min(wh) / 200.0;
-        let radius = settings.radius_multiplier * ww.min(wh) - img_dim() - thickness * 2.0;
+        let radius = settings.radius_multiplier * ww.min(wh) - img_dim - thickness * 2.0;
 
         let [cx, cy] = [ww / 2.0, wh / 2.0];
 
@@ -275,16 +274,13 @@ impl DisplaySpell {
         [p0, p1, p2, p3]
     }
 
-    pub fn draw(&self, num_spells: usize, ui: &Ui, draw_list: &DrawListMut) {
-        let [screen_w, screen_h] = get_window_size();
+    pub fn draw(&self, settings: &Settings, ww: f32, wh: f32, img_dim: f32, num_spells: usize, ui: &Ui, draw_list: &DrawListMut) {
+        let [cx, cy] = [ww / 2.0, wh / 2.0];
 
-        let [cx, cy] = [screen_w / 2.0, screen_h / 2.0];
-
-        let settings = Settings::read_or_default();
         if settings.using_controller {
-            let thickness = screen_w.min(screen_h) / 200.0;
+            let thickness = ww.min(wh) / 200.0;
 
-            let radius = settings.radius_multiplier * screen_w.min(screen_h) - img_dim();
+            let radius = settings.radius_multiplier * ww.min(wh) - img_dim;
 
             let angle_offset = std::f32::consts::PI / num_spells as f32 - (thickness / radius).atan();
             if is_debugging() {
@@ -401,10 +397,10 @@ impl WrappedText {
             let y = pos[1] + i as f32 * self.line_height;
 
             if shadow {
-                const SHADOW_DELTAS: [[f32; 2]; 9] = [
-                    [-1.0, -1.0], [0.0, -1.0], [1.0, -1.0],
-                    [-1.0,  0.0], [0.0,  0.0], [1.0,  0.0],
-                    [-1.0,  1.0], [0.0,  1.0], [1.0,  1.0],
+                const SHADOW_DELTAS: [[f32; 2]; 4] = [
+                    [-1.0, -1.0], /*[0.0, -1.0],*/ [1.0, -1.0],
+                    /*[-1.0,  0.0], [0.0,  0.0], [1.0,  0.0],*/
+                    [-1.0,  1.0], /*[0.0,  1.0],*/ [1.0,  1.0],
                 ];
 
                 for [dx, dy] in SHADOW_DELTAS {

@@ -132,8 +132,9 @@ impl ImguiRenderLoop for SpellWheel {
     fn render(&mut self, ui: &mut Ui) {
         guard!(
             let font = self.font.map(|font| unsafe { ui.push_font(mem::transmute(font)) });
-            let do_render = SpellWheelData::get(|data| data.do_render);
-            let mut spells = SpellWheelData::get(|data| data.spells.clone());
+            let (do_render, mut spells) = SpellWheelData::get(|data| (
+                data.do_render, data.spells.clone()
+            ));
 
             if self.did_render && !do_render {
                 tracing::info!("Switching spells");

@@ -7,7 +7,7 @@ use lazy_static::lazy_static;
 use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
 use crate::debugging::{add_to_screen_debug, is_debugging, run_every};
-use crate::{in_menus, keyboard, PROGRAM_START};
+use crate::{in_menus, keyboard};
 use crate::gamepad::{gamepad_state, BUTTONS};
 use crate::keyboard::KEYS;
 use crate::settings::Settings;
@@ -41,8 +41,19 @@ pub fn is_player_selecting_spell() -> bool {
 			let button_code = *BUTTONS.get(button.to_uppercase().as_str())
 				.unwrap_or(&Ok(XINPUT_GAMEPAD_DPAD_UP));
 			let pressed = gamepad_state().pressed_duration(button_code);
-
-			pressed.is_some_and(|duration| duration.as_secs_f32() > settings.controller_wheel_open_delay)
+			let out = pressed.is_some_and(|duration| duration.as_secs_f32() > settings.controller_wheel_open_delay);
+			if is_debugging() {
+				run_every!("button valid / pressed" every Duration::from_secs(1) => {
+					let button_code = match button_code {
+						Ok(code) => code.0.to_string(),
+						Err(is_r2) if is_r2 => "R2".to_string(),
+						Err(_) => "L2".to_string(),
+					};
+					tracing::info!("{button}: code = {button_code}, valid? = {button_valid}, pressed? = {}, focused? = {}", out, is_game_focused())
+				});
+			}
+			*prev_button_mutex = Some(button);
+			out
 		}
 		false => {
 			let mut prev_key_mutex = PREV_KEY.lock().unwrap();
