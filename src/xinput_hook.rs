@@ -104,3 +104,14 @@ pub fn install_xinput_hook() -> bool {
         false
     }
 }
+
+pub fn remove_xinput_hook() {
+    unsafe {
+        if !HOOKED.load(Ordering::Relaxed) {
+            return;
+        }
+
+        let res = XInputHook.disable();
+        tracing::info!("XInput hook disable result: {res:?}");
+    }
+}

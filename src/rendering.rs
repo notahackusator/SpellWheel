@@ -33,6 +33,10 @@ pub fn try_init_rendering() {
     }
 }
 
+pub fn remove_hudhook() {
+    hudhook::eject();
+}
+
 lazy_static!(
     static ref SPELL_WHEEL_DATA: Arc<RwLock<SpellWheelData>> = Arc::new(RwLock::new(SpellWheelData::new()));
 );

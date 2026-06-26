@@ -10,7 +10,6 @@ use crate::icons::atlas::AtlasTexture;
 use crate::util::AddSpan;
 use imgui::TextureId;
 use roxmltree::Node;
-use serde::Deserialize;
 use std::io::{Error, ErrorKind};
 
 #[derive(Clone, Copy, Debug, PartialEq)]

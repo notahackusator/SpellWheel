@@ -1,17 +1,10 @@
-use std::collections::HashMap;
-use std::sync::Mutex;
-use std::time::Duration;
-use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
-use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_TAB};
-use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
 use lazy_static::lazy_static;
-use windows::Win32::UI::Input::XboxController::XINPUT_GAMEPAD_DPAD_UP;
-use crate::debugging::{add_to_screen_debug, is_debugging, run_every};
-use crate::{gamepad_state, in_menus, PROGRAM_START};
-use crate::settings::Settings;
+use std::collections::HashMap;
+use crate::io;
 
 lazy_static!(
-	static ref KEYS: HashMap<&'static str, u16> = HashMap::from_iter([
+	pub static ref KEYS: HashMap<&'static str, u16> = HashMap::from_iter([
 		("0", 48u16),
 		("1", 49u16),
 		("2", 50u16),
@@ -262,15 +255,6 @@ lazy_static!(
 	]);
 );
 
-fn is_game_focused() -> bool {
-    unsafe {
-        let foreground = GetForegroundWindow();
-        let mut pid = 0u32;
-        GetWindowThreadProcessId(foreground, Some(&mut pid));
-        pid == GetCurrentProcessId()
-    }
-}
-
 fn is_key_pressed(vk: i32) -> bool {
 	unsafe {
 		GetAsyncKeyState(vk) & 0x8000u16 as i16 != 0
@@ -278,56 +262,5 @@ fn is_key_pressed(vk: i32) -> bool {
 }
 
 pub fn is_pressed(vk: i32) -> bool {
-	is_game_focused() && is_key_pressed(vk)
-}
-
-lazy_static!(
-	static ref PREV_KEY: Mutex<Option<String>> = Mutex::new(None);
-);
-pub fn is_player_selecting_spell() -> bool {
-	if in_menus() {
-		if is_debugging() {
-			add_to_screen_debug("Player in menus".to_string());
-		}
-		return false;
-	}
-	let settings = Settings::read_or_default();
-	match settings.using_controller {
-		true => {
-			let pressed = gamepad_state().pressed;
-
-			// The trailing_zeros call returns what power of 2 it is,
-			// since the XINPUT_GAMEPAD constants are all powers of 2.
-			let dpad_up = XINPUT_GAMEPAD_DPAD_UP.0.trailing_zeros() as usize;
-
-			let is_pressed = pressed[dpad_up] != *PROGRAM_START;
-			let pressed_for_long_enough = pressed[dpad_up].elapsed() >
-				Duration::from_secs_f32(settings.controller_wheel_open_delay);
-
-			is_pressed && pressed_for_long_enough
-		}
-		false => {
-			let mut prev_key_mutex = PREV_KEY.lock().unwrap();
-			let key = settings.key;
-			let key_changed = match prev_key_mutex.as_ref() {
-				Some(prev_key) => &key == prev_key,
-				None => false
-			};
-			let key_valid = KEYS.contains_key(key.as_str());
-			if key_changed && !key_valid {
-				tracing::error!("Invalid key: {key}");
-			}
-
-			let key_code = *KEYS.get(key.as_str())
-				.unwrap_or(&VK_TAB.0) as i32;
-			let out = is_pressed(key_code);
-			if is_debugging() {
-				run_every!("key valid / pressed" every Duration::from_secs(1) => {
-					tracing::info!("{key}: code = {key_code}, valid? = {key_valid}, pressed? = {}, focused? = {}", is_key_pressed(key_code), is_game_focused())
-				});
-			}
-			*prev_key_mutex = Some(key);
-			out
-		}
-	}
+	io::is_game_focused() && is_key_pressed(vk)
 }

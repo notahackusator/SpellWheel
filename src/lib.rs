@@ -15,6 +15,7 @@ pub mod mouse;
 pub mod hwindow;
 pub mod dynamic_icons;
 pub mod util;
+pub mod io;
 
 use std::fs::File;
 use std::mem;
@@ -25,17 +26,18 @@ use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex,
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
+use hudhook::windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 use lazy_static::lazy_static;
 use tracing_subscriber::fmt;
 use crate::await_seamless::{await_seamless, is_seamless_coop_active};
 use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
-use crate::gamepad::GamepadState;
+use crate::gamepad::{set_gamepad_state, update_gamepad_state, GamepadState};
 use crate::icons::icon_manager::IconManager;
-use crate::keyboard::is_player_selecting_spell;
-use crate::rendering::{try_init_rendering, SpellWheelData};
+use io::is_player_selecting_spell;
+use crate::rendering::{try_init_rendering, remove_hudhook, SpellWheelData};
 use crate::settings::Settings;
 use crate::spells::Spell;
-use crate::xinput_hook::{install_xinput_hook, set_suppress_camera};
+use crate::xinput_hook::{install_xinput_hook, remove_xinput_hook, set_suppress_camera};
 
 static HMODULE: OnceLock<usize> = OnceLock::new();
 
@@ -57,11 +59,11 @@ pub fn hwnd() -> windows::Win32::Foundation::HWND {
 ///
 /// This is exposed this way such that windows LoadLibrary API can call it. Do not call this yourself.
 pub unsafe extern "C" fn DllMain(hmodule: usize, reason: u32) -> bool {
-    if reason != 1 {
-        return true;
+    match reason {
+        DLL_PROCESS_ATTACH => { std::thread::spawn(move || init(hmodule)); },
+        DLL_PROCESS_DETACH => deinit(),
+        _ => {}
     }
-
-    std::thread::spawn(move || init(hmodule));
 
     true
 }
@@ -88,29 +90,15 @@ fn init(hmodule: usize) {
     );
 }
 
+fn deinit() {
+    tracing::info!("DLL detach called");
+    remove_hudhook();
+    remove_xinput_hook();
+}
+
 lazy_static!(
     pub static ref PROGRAM_START: Instant = Instant::now();
 );
-
-lazy_static!(
-    static ref GAMEPAD_STATE: OnceLock<Arc<Mutex<GamepadState>>> = OnceLock::new();
-);
-fn update_gamepad_state() {
-    match GAMEPAD_STATE.get() {
-        Some(gamepad_state) => gamepad_state.lock().unwrap().update(),
-        None => tracing::error!("update_gamepad_data called before GAMEPAD_STATE was initialized"),
-    }
-}
-
-pub fn gamepad_state() -> GamepadState {
-    match GAMEPAD_STATE.get() {
-        Some(gamepad_state) => gamepad_state.lock().unwrap().clone(),
-        None => {
-            tracing::error!("gamepad_data called before GAMEPAD_STATE was initialized");
-            GamepadState::new()
-        }
-    }
-}
 
 #[macro_export]
 macro_rules! guard {
@@ -142,7 +130,7 @@ fn start() {
     let tasks = unsafe { CSTaskImp::instance() }.expect("Could not get CSTaskImp");
     tracing::info!("Creating gamepad state");
     let gamepad_state = Arc::new(Mutex::new(GamepadState::new()));
-    if GAMEPAD_STATE.set(gamepad_state).is_err() {
+    if set_gamepad_state(gamepad_state).is_err() {
         tracing::error!("GAMEPAD_STATE should not be set before start");
     }
     tracing::info!("Running task");

@@ -1,5 +1,4 @@
 use crate::debugging::{add_to_screen_debug, is_debugging, read_committed_screen_debug};
-use crate::gamepad_state;
 use crate::hwindow::get_window_size;
 use crate::icons::icon_manager::IconManager;
 use crate::icons::AtlasIcon;
@@ -7,6 +6,7 @@ use crate::mouse::get_mouse_state;
 use crate::settings::{Settings, SpellNames};
 use crate::spells::Spell;
 use imgui::{DrawListMut, Ui};
+use crate::gamepad::gamepad_state;
 
 pub struct DisplaySpell {
     pub index: i32,

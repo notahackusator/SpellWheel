@@ -4,6 +4,11 @@
 # Note that you should not prefix the key with "VK_". So if you want Tab, write "TAB". If you want Alt, write "MENU".
 key = "TAB"
 
+# The button used to open the spell wheel on controller. The following is a list of valid values:
+# UP, DOWN, LEFT, RIGHT, A, B, X, Y, R1, R2, R3, L1, L2, L3
+# They must be surrounded by double quotes.
+button = "UP"
+
 # Decides whether to use controller or mouse and keyboard. true for controller, false for mouse & keyboard. Default is false.
 using_controller = false
 

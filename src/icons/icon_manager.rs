@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::mem::take;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Instant;
-use imgui::TextureId;
 use hudhook::RenderContext;
 use lazy_static::lazy_static;
 use crate::dynamic_icons::modded_reader;

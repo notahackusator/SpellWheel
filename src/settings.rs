@@ -9,6 +9,8 @@ use crate::paths;
 pub struct Settings {
     #[serde(default = "default_key")]
     pub key: String,
+    #[serde(default = "default_button")]
+    pub button: String,
     #[serde(default = "default_using_controller")]
     pub using_controller: bool,
     #[serde(default = "default_controller_wheel_open_delay")]
@@ -37,6 +39,10 @@ pub struct Settings {
 
 pub fn default_key() -> String {
     "TAB".to_string()
+}
+
+pub fn default_button() -> String {
+    "UP".to_string()
 }
 
 pub const fn default_using_controller() -> bool {
@@ -91,6 +97,7 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             key: default_key(),
+            button: default_button(),
             using_controller: default_using_controller(),
             controller_wheel_open_delay: default_controller_wheel_open_delay(),
             spell_names: default_spell_names(),
