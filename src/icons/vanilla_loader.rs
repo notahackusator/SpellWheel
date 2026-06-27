@@ -9,6 +9,10 @@ pub fn load_spells(await_graphics: &mut Vec<AwaitGraphics>) -> anyhow::Result<()
     let mut read_success = vanilla_reader::read().add_span()?;
     let out = generic_loader::parse_bnd_and_tpf(await_graphics, &mut read_success);
     let time = start.elapsed();
-    tracing::info!("Finished initializing vanilla spells in {time:?}");
-    out
+    if let Ok(atlas_size) = out {
+        tracing::info!("Finished initializing vanilla spells ({atlas_size}) in {time:?}");
+    } else {
+        tracing::info!("Finished initializing vanilla spells in {time:?}");
+    }
+    out.map(|_| ())
 }

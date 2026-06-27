@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::io::{Error, ErrorKind};
 use std::sync::{Arc, Mutex};
 use fstools_formats::bnd4::BND4Entry;
+use hudhook::windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT, DXGI_FORMAT_BC7_UNORM};
 use roxmltree::Node;
 use regex::Regex;
 use image_dds::ddsfile::Dds;
@@ -11,13 +13,13 @@ use crate::icons::AtlasIcon;
 use crate::icons::await_graphics::AwaitGraphics;
 use crate::util::AddSpan;
 
-pub fn parse_bnd_and_tpf(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut ReadSuccess) -> anyhow::Result<()> {
-    let atlases = parse_atlases(await_graphics, read_success)?;
+pub fn parse_bnd_and_tpf(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut ReadSuccess) -> anyhow::Result<AtlasSize> {
+    let (atlases, atlas_size) = parse_atlases(await_graphics, read_success)?;
 
     for entry in read_success.bnd.files.iter() {
         parse_entry(await_graphics, read_success, &atlases, entry).add_span()?;
     }
-    Ok(())
+    Ok(atlas_size)
 }
 
 fn parse_entry(await_graphics: &mut Vec<AwaitGraphics>, read_success: &ReadSuccess, atlases: &HashMap<String, Arc<Mutex<Atlas>>>, entry: &BND4Entry) -> anyhow::Result<()> {
@@ -77,33 +79,101 @@ fn parse_node(await_graphics: &mut Vec<AwaitGraphics>, atlas: Arc<Mutex<Atlas>>,
     Ok(())
 }
 
-fn parse_atlases(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut ReadSuccess) -> anyhow::Result<HashMap<String, Arc<Mutex<Atlas>>>> {
+pub type Atlases = HashMap<String, Arc<Mutex<Atlas>>>;
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AtlasSize {
+    pub compressed: u32,
+    pub uncompressed: u32,
+}
+
+impl Display for AtlasSize {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut c_f32 = self.compressed as f32;
+        let mut c_suffix = "B";
+
+        let mut u_f32 = self.uncompressed as f32;
+        let mut u_suffix = "B";
+
+        for (size, suf) in [(1_000_000_000, "GB"), (1_000_000, "MB"), (1_000, "KB")] {
+            if self.compressed > size {
+                c_f32 = self.compressed as f32 / size as f32;
+                c_suffix = suf;
+                break;
+            }
+        }
+
+        for (size, suf) in [(1_000_000_000, "GB"), (1_000_000, "MB"), (1_000, "KB")] {
+            if self.uncompressed > size {
+                u_f32 = self.uncompressed as f32 / size as f32;
+                u_suffix = suf;
+                break;
+            }
+        }
+
+        write!(f, "{u_f32:.2}{u_suffix} uncompressed, {c_f32:.2}{c_suffix} compressed")
+    }
+}
+
+impl AtlasSize {
+    pub fn new(compressed: u32, uncompressed: u32) -> Self {
+        Self {
+            compressed,
+            uncompressed,
+        }
+    }
+}
+
+fn parse_atlases(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut ReadSuccess) -> anyhow::Result<(Atlases, AtlasSize)> {
     let mut atlases = HashMap::new();
+
+    let mut size_u = 0;
+    let mut size_c = 0;
 
     // Converts TPF to atlases
     for texture in read_success.tpf.textures.iter() {
+        let atlas = Arc::new(Mutex::new(Atlas::new(texture.name.clone())));
+        atlases.insert(texture.name.clone(), atlas.clone());
+
         // Reads DDS compressed texture
         let dds_bytes = texture.bytes(&mut read_success.tpf_cursor).add_span()?;
         let dds = Dds::read(dds_bytes.as_slice()).add_span()?;
-
-        // Converts to image
-        let surface = image_dds::Surface::from_dds(&dds)?;
-        let icon = surface.decode_rgba8().add_span()?;
-        let width = icon.width;
-        let height = icon.height;
-
-        let atlas = Arc::new(Mutex::new(Atlas::new(texture.name.clone())));
-        atlases.insert(texture.name.clone(), atlas.clone());
-        await_graphics.push(Box::new(move |render_context, _| {
-            let mut atlas = atlas.lock().unwrap();
-            if !atlas.used {
-                return Ok(());
+        match dds.get_dxgi_format() {
+            Some(format) => {
+                size_c += dds_bytes.len() as u32;
+                await_graphics.push(Box::new(move |render_context, _| {
+                    let mut atlas = atlas.lock().unwrap();
+                    if !atlas.used {
+                        return Ok(());
+                    }
+                    // Stores atlas
+                    let texture_id = render_context.load_texture(
+                        DXGI_FORMAT(format as i32), dds.get_data(0).unwrap(), dds.get_width(), dds.get_height()
+                    )?;
+                    atlas.set_texture(texture_id, dds.get_width(), dds.get_height());
+                    Ok(())
+                }));
             }
-            // Stores atlas
-            let texture_id = render_context.load_texture(&icon.data, width, height)?;
-            atlas.set_texture(texture_id, width, height);
-            Ok(())
-        }));
+            None => {
+                // Converts to image
+                let surface = image_dds::Surface::from_dds(&dds)?;
+                let icon = surface.decode_rgba8().add_span()?;
+                let width = icon.width;
+                let height = icon.height;
+
+                size_u += width * height * 4;
+
+                await_graphics.push(Box::new(move |render_context, _| {
+                    let mut atlas = atlas.lock().unwrap();
+                    if !atlas.used {
+                        return Ok(());
+                    }
+                    // Stores atlas
+                    let texture_id = render_context.load_texture(DXGI_FORMAT_BC7_UNORM, &icon.data, width, height)?;
+                    atlas.set_texture(texture_id, width, height);
+                    Ok(())
+                }));
+            }
+        }
     }
-    Ok(atlases)
+    Ok((atlases, AtlasSize::new(size_c, size_u)))
 }

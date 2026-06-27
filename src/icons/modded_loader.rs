@@ -11,6 +11,10 @@ where P: AsRef<Path> {
     let mut read_success = modded_reader::read(path).add_span()?;
     let out = generic_loader::parse_bnd_and_tpf(await_graphics, &mut read_success);
     let time = start.elapsed();
-    tracing::info!("Finished initializing modded spells in {time:?}");
-    out
+    if let Ok(atlas_size) = out {
+        tracing::info!("Finished initializing modded spells ({atlas_size}) in {time:?}");
+    } else {
+        tracing::info!("Finished initializing modded spellsin {time:?}");
+    }
+    out.map(|_| ())
 }
