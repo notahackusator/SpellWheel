@@ -36,10 +36,9 @@ radius_multiplier = 0.3
 # Default is 0.3.
 min_radius = 0.3
 
-# Paths to JSON files / directories for modded spells. Empty by default.
+# Paths to directories for modded spells. Empty by default.
 # The path is relative to Game/mods/spellwheel/icons.
 # If you want multiple modded spell files, you can have that too: ['path/to/mod1', 'path/to/mod2']
-# JSON files are deprecated, but you can still create them: https://github.com/notahackusator/SpellWheel
 #
 # The intended way is to point to a directory containing a mod/menu/hi path,
 # where the hi folder contains 01_common.sblytbnd.dcx and 01_common.tpf.dcx, which are game icon files.
