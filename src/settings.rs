@@ -4,114 +4,139 @@ use std::fs::read_to_string;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use crate::paths;
+use serde::Deserialize;
 
-#[derive(serde::Deserialize, Clone)]
-pub struct Settings {
-    #[serde(default = "default_key")]
-    pub key: String,
-    #[serde(default = "default_button")]
-    pub button: String,
-    #[serde(default = "default_using_controller")]
-    pub using_controller: bool,
-    #[serde(default = "default_controller_wheel_open_delay")]
-    pub controller_wheel_open_delay: f32,
-    #[serde(default = "default_spell_names")]
-    pub spell_names: String,
-    #[serde(default = "default_text_shadows")]
-    pub text_shadows: bool,
-    #[serde(default = "default_font_scale_multiplier")]
-    pub font_scale_multiplier: f32,
-    #[serde(default = "default_icon_scale_multiplier")]
-    pub icon_scale_multiplier: f32,
-    #[serde(default = "default_radius_multiplier")]
-    pub radius_multiplier: f32,
-    #[serde(default = "default_min_radius")]
-    pub min_radius: f32,
-    #[serde(default = "default_modded_spells")]
-    pub modded_spells: Vec<String>,
-    #[serde(default = "default_await_xinput_hook")]
-    pub await_xinput_hook: bool,
-    #[serde(default = "default_debugging")]
-    pub debugging: bool,
-    #[serde(default = "default_timing_offset")]
-    pub timing_offset: f32,
+macro_rules! settings {
+    ($($name:ident: $t:ty),*$(,)?) => {
+        #[derive(Clone)]
+        pub struct Settings {
+            $(
+                pub $name: $t
+            ),*
+        }
+
+        impl<'de> serde::Deserialize<'de> for Settings {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                use serde::de::{self, MapAccess, Visitor};
+                use std::fmt;
+
+                struct SettingsVisitor;
+
+                impl<'de> Visitor<'de> for SettingsVisitor {
+                    type Value = Settings;
+
+                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        write!(f, "a settings map")
+                    }
+
+                    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Settings, A::Error> {
+                        let mut this = Settings::default();
+
+                        while let Some(key) = map.next_key::<String>()? {
+                            match key.as_str() {
+                                $(stringify!($name) => {
+                                    this.$name = map.next_value()?;
+                                })*
+                                _ => { map.next_value::<serde::de::IgnoredAny>()?; }
+                            }
+                        }
+
+                        Ok(this)
+                    }
+                }
+
+                deserializer.deserialize_map(SettingsVisitor)
+            }
+        }
+
+        impl Default for Settings {
+            fn default() -> Self {
+                Self {
+                    $(
+                        $name: $name()
+                    ),*
+                }
+            }
+        }
+    };
 }
 
-pub fn default_key() -> String {
+settings!(
+    key: String,
+    button: String,
+    using_controller: bool,
+    controller_wheel_open_delay: f32,
+    switch_instantly: bool,
+    spell_names: String,
+    text_shadows: bool,
+    font_scale_multiplier: f32,
+    icon_scale_multiplier: f32,
+    radius_multiplier: f32,
+    min_radius: f32,
+    modded_spells: Vec<String>,
+    await_xinput_hook: bool,
+    debugging: bool,
+    timing_offset: f32,
+);
+
+pub fn key() -> String {
     "TAB".to_string()
 }
 
-pub fn default_button() -> String {
+pub fn button() -> String {
     "UP".to_string()
 }
 
-pub const fn default_using_controller() -> bool {
+pub const fn using_controller() -> bool {
     false
 }
 
-pub const fn default_controller_wheel_open_delay() -> f32 {
+pub const fn controller_wheel_open_delay() -> f32 {
     0.5
 }
 
-pub fn default_spell_names() -> String {
-    "show".to_string()
-}
-
-pub const fn default_text_shadows() -> bool {
+pub const fn switch_instantly() -> bool {
     true
 }
 
-pub const fn default_debugging() -> bool {
+pub fn spell_names() -> String {
+    "show".to_string()
+}
+
+pub const fn text_shadows() -> bool {
+    true
+}
+
+pub const fn debugging() -> bool {
     false
 }
 
-pub const fn default_font_scale_multiplier() -> f32 {
+pub const fn font_scale_multiplier() -> f32 {
     1.0
 }
 
-pub const fn default_icon_scale_multiplier() -> f32 {
+pub const fn icon_scale_multiplier() -> f32 {
     0.15
 }
 
-pub const fn default_radius_multiplier() -> f32 {
+pub const fn radius_multiplier() -> f32 {
     0.3
 }
 
-pub fn default_modded_spells() -> Vec<String> {
+pub fn modded_spells() -> Vec<String> {
     Vec::new()
 }
 
-pub const fn default_await_xinput_hook() -> bool {
+pub const fn await_xinput_hook() -> bool {
     false
 }
 
-pub const fn default_min_radius() -> f32 {
+pub const fn min_radius() -> f32 {
     0.3
 }
 
-pub const fn default_timing_offset() -> f32 {
+pub const fn timing_offset() -> f32 {
     0.0
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Settings {
-            key: default_key(),
-            button: default_button(),
-            using_controller: default_using_controller(),
-            controller_wheel_open_delay: default_controller_wheel_open_delay(),
-            spell_names: default_spell_names(),
-            text_shadows: default_text_shadows(),
-            debugging: default_debugging(),
-            font_scale_multiplier: default_font_scale_multiplier(),
-            icon_scale_multiplier: default_icon_scale_multiplier(),
-            radius_multiplier: default_radius_multiplier(),
-            modded_spells: default_modded_spells(),
-            await_xinput_hook: default_await_xinput_hook(),
-            min_radius: default_min_radius(),
-            timing_offset: default_timing_offset(),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug)]

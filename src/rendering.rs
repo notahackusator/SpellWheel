@@ -84,7 +84,6 @@ impl SpellWheel {
         if let Some(spell) = self.display_spells.iter()
             .find(|spell| spell.is_highlighted) {
 
-            tracing::info!("Selecting spell at index: {}", spell.index);
             set_selected_spell_index(spell.index);
         }
     }
@@ -136,8 +135,8 @@ impl ImguiRenderLoop for SpellWheel {
                 data.do_render, data.spells.clone()
             ));
 
-            if self.did_render && !do_render {
-                tracing::info!("Switching spells");
+            let switch_spells = Settings::read_or_default().switch_instantly || (self.did_render && !do_render);
+            if switch_spells {
                 self.switch_spell();
             }
 
