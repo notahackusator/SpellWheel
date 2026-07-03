@@ -8,7 +8,7 @@ use crate::dynamic_icons::modded_reader;
 use crate::icons::{modded_loader, vanilla_loader, AtlasIcon};
 use crate::icons::await_graphics::AwaitGraphics;
 use crate::settings::Settings;
-use crate::spells::Spell;
+use crate::items::Item;
 
 lazy_static!(
     static ref ICON_MANAGER: OnceLock<Arc<RwLock<IconManager>>> = OnceLock::new();
@@ -20,13 +20,13 @@ pub struct IconManager {
 }
 
 impl IconManager {
-    pub fn get(spell: &Spell) -> Option<AtlasIcon> {
+    pub fn get(spell: &Item) -> Option<AtlasIcon> {
         ICON_MANAGER.get()
             .and_then(|manager| manager.read().ok())
             .and_then(|manager| manager.get_inner(spell))
     }
     
-    fn get_inner(&self, spell: &Spell) -> Option<AtlasIcon> {
+    fn get_inner(&self, spell: &Item) -> Option<AtlasIcon> {
         self.spell_icons.get(&spell.icon_id()).cloned()
     }
 

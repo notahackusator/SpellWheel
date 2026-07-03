@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 use imgui::Context;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use windows::core::{Error, Interface, Result, BOOL, HRESULT};
 use windows::Win32::Graphics::Direct3D::D3D_FEATURE_LEVEL_11_0;
 use windows::Win32::Graphics::Direct3D12::{
@@ -173,7 +173,7 @@ static mut RENDER_LOOP: OnceCell<Box<dyn ImguiRenderLoop + Send + Sync>> = OnceC
 
 unsafe fn init_pipeline() -> Result<Mutex<Pipeline<D3D12RenderEngine>>> {
     let Some((swap_chain, command_queue)) = ({ INIT_STATE.lock().get() }) else {
-        error!("Initialization context incomplete");
+        info!("Initialization context incomplete");
         return Err(Error::from_hresult(HRESULT(-1)));
     };
 
@@ -232,7 +232,11 @@ unsafe extern "system" fn dxgi_swap_chain_present_impl(
 
     if let Err(e) = render(&swap_chain) {
         util::print_dxgi_debug_messages();
-        error!("Render error: {e:?}");
+        if INIT_STATE.is_done() {
+            error!("Render error: {e:?}");
+        } else {
+            error!("Render error: {e:?}");
+        }
     }
 
     trace!("Call IDXGISwapChain::Present trampoline");

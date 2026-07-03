@@ -1,17 +1,18 @@
+use std::fmt::{Debug, Formatter};
 use crate::debugging::{add_to_screen_debug, is_debugging, read_committed_screen_debug};
 use crate::hwindow::get_window_size;
 use crate::icons::icon_manager::IconManager;
 use crate::icons::AtlasIcon;
 use crate::mouse::get_mouse_state;
-use crate::settings::{Settings, SpellNames};
-use crate::spells::Spell;
+use crate::settings::{Settings, ItemNames};
+use crate::items::Item;
 use imgui::{DrawListMut, Ui};
 use crate::gamepad::gamepad_state;
 
-pub struct DisplaySpell {
+pub struct DisplayItem {
     pub index: i32,
     pub icon: Option<AtlasIcon>,
-    pub spell_name: WrappedText,
+    pub name: WrappedText,
     pub is_highlighted: bool,
     pub angle: f32,
     pub pos: [f32; 2],
@@ -24,7 +25,13 @@ pub struct DisplaySpell {
     pub cos_sin: [f32; 2],
 }
 
-impl DisplaySpell {
+impl Debug for DisplayItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DisplayItem{{index={}, angle={:.3}}}", self.index, self.angle)
+    }
+}
+
+impl DisplayItem {
     pub fn dist(&self, cos: f32, sin: f32) -> f32 {
         let dx = cos - self.cos_sin[0];
         let dy = sin - self.cos_sin[1];
@@ -50,14 +57,14 @@ impl DisplaySpell {
         (angle, dist_sqr)
     }
 
-    pub fn closest(spells: &[DisplaySpell], angle: f32) -> Option<usize> {
-        spells.first().map(|first| {
+    pub fn closest(items: &[DisplayItem], angle: f32) -> Option<usize> {
+        items.first().map(|first| {
             let [cos, sin] = [angle.cos(), angle.sin()];
 
             let mut min = 0;
             let mut min_dist = first.dist(cos, sin);
-            for (i, spell) in spells.iter().enumerate().skip(1) {
-                let dist = spell.dist(cos, sin);
+            for (i, item) in items.iter().enumerate().skip(1) {
+                let dist = item.dist(cos, sin);
 
                 if dist > min_dist {
                     continue;
@@ -71,8 +78,8 @@ impl DisplaySpell {
         })
     }
 
-    pub fn from_spells(ui: &Ui, spells: &[Spell]) -> Vec<DisplaySpell> {
-        let n = spells.len();
+    pub fn from_items(ui: &Ui, items: &[Item]) -> Vec<DisplayItem> {
+        let n = items.len();
         if n == 0 {
             return vec![];
         }
@@ -87,8 +94,8 @@ impl DisplaySpell {
 
         let img_dim = img_dim();
 
-        spells.iter().enumerate()
-            .map(|(i, spell)| {
+        items.iter().enumerate()
+            .map(|(i, item)| {
                 let angle = (i as f32 / n as f32) * std::f32::consts::TAU
                     - std::f32::consts::FRAC_PI_2;
 
@@ -102,9 +109,9 @@ impl DisplaySpell {
                     cy + sin * radius
                 ];
 
-                let spell_name = WrappedText::new(ui, img_dim, spell.name());
-                let [text_w, text_h] = match settings.spell_names() {
-                    SpellNames::Show => [img_dim, spell_name.line_height * spell_name.lines.len() as f32],
+                let name = WrappedText::new(ui, img_dim, item.name());
+                let [text_w, text_h] = match settings.item_names() {
+                    ItemNames::Show => [img_dim, name.line_height * name.lines.len() as f32],
                     _ => [0.0; 2]
                 };
 
@@ -136,14 +143,14 @@ impl DisplaySpell {
 
                 let thickness = ((max_dx * 2.0).powi(2) + (max_dy * 2.0).powi(2)).sqrt();
 
-                let index = spell.index();
-                let icon = IconManager::get(spell);
+                let index = item.index();
+                let icon = IconManager::get(item);
                 let is_highlighted = false;
 
-                DisplaySpell {
+                DisplayItem {
                     index,
                     icon,
-                    spell_name,
+                    name,
                     is_highlighted,
                     angle,
                     pos,
@@ -159,9 +166,9 @@ impl DisplaySpell {
             .collect()
     }
 
-    pub fn draw_all(spells: &mut [DisplaySpell], ui: &Ui, draw_list: &DrawListMut) {
+    pub fn draw_all(items: &mut [DisplayItem], ui: &Ui, draw_list: &DrawListMut) {
         Self::draw_debug(ui, draw_list);
-        if spells.is_empty() {
+        if items.is_empty() {
             return;
         }
         let settings = Settings::read_or_default();
@@ -179,24 +186,24 @@ impl DisplaySpell {
         // Only select closest IF far enough away from the center
         let can_select = dist_sqr >= min_radius_sqr;
         if can_select {
-            for spell in spells.iter_mut() {
-                spell.is_highlighted = false;
+            for item in items.iter_mut() {
+                item.is_highlighted = false;
             }
-            if let Some(closest_idx) = Self::closest(spells, angle) {
+            if let Some(closest_idx) = Self::closest(items, angle) {
                 if is_debugging() {
-                    add_to_screen_debug(format!("Closest spell index: {closest_idx}"))
+                    add_to_screen_debug(format!("Closest item index: {closest_idx}"))
                 }
-                spells[closest_idx].is_highlighted = true;
+                items[closest_idx].is_highlighted = true;
             } else if is_debugging() {
-                add_to_screen_debug("No spell highlighted, but within range.".to_string());
+                add_to_screen_debug("No item highlighted, but within range.".to_string());
             }
         }
 
         let img_dim = img_dim();
         Self::draw_selector(&settings, ww, wh, img_dim, draw_list, angle, can_select);
 
-        for spell in spells.iter() {
-            spell.draw(&settings, ww, wh, img_dim, spells.len(), ui, draw_list);
+        for item in items.iter() {
+            item.draw(&settings, ww, wh, img_dim, items.len(), ui, draw_list);
         }
     }
 
@@ -274,7 +281,7 @@ impl DisplaySpell {
         [p0, p1, p2, p3]
     }
 
-    pub fn draw(&self, settings: &Settings, ww: f32, wh: f32, img_dim: f32, num_spells: usize, ui: &Ui, draw_list: &DrawListMut) {
+    pub fn draw(&self, settings: &Settings, ww: f32, wh: f32, img_dim: f32, num_items: usize, ui: &Ui, draw_list: &DrawListMut) {
         let [cx, cy] = [ww / 2.0, wh / 2.0];
 
         if settings.using_controller {
@@ -282,7 +289,7 @@ impl DisplaySpell {
 
             let radius = settings.radius_multiplier * ww.min(wh) - img_dim;
 
-            let angle_offset = std::f32::consts::PI / num_spells as f32 - (thickness / radius).atan();
+            let angle_offset = std::f32::consts::PI / num_items as f32 - (thickness / radius).atan();
             if is_debugging() {
                 add_to_screen_debug(format!("{angle_offset} {thickness} {radius} {}", (thickness / radius).atan()));
             }
@@ -299,8 +306,8 @@ impl DisplaySpell {
                 [1.0, 1.0, 1.0, 0.2]
             ).filled(true).rounding(10.0).build();
 
-            if let SpellNames::Center = settings.spell_names() {
-                self.spell_name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), true, settings.text_shadows);
+            if let ItemNames::Center = settings.item_names() {
+                self.name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), true, settings.text_shadows);
             }
         }
         match self.icon {
@@ -321,8 +328,8 @@ impl DisplaySpell {
                 [0.5, 0.5, 0.5, 1.0]
             ).build()
         }
-        if let SpellNames::Show = settings.spell_names() {
-            self.spell_name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), true, settings.text_shadows);
+        if let ItemNames::Show = settings.item_names() {
+            self.name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), true, settings.text_shadows);
         }
     }
 

@@ -5,12 +5,12 @@ mod debugging;
 mod keyboard;
 mod icons;
 mod settings;
-pub mod spells;
+pub mod items;
 pub mod paths;
 pub mod gamepad;
 pub mod xinput_hook;
 pub mod await_seamless;
-pub mod display_spell;
+pub mod display_item;
 pub mod mouse;
 pub mod hwindow;
 pub mod dynamic_icons;
@@ -33,10 +33,10 @@ use crate::await_seamless::{await_seamless, is_seamless_coop_active};
 use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
 use crate::gamepad::{set_gamepad_state, update_gamepad_state, GamepadState};
 use crate::icons::icon_manager::IconManager;
-use io::is_player_selecting_spell;
-use crate::rendering::{try_init_rendering, remove_hudhook, SpellWheelData};
+use io::selected_wheel_type;
+use crate::rendering::{try_init_rendering, remove_hudhook, ItemWheelData, WheelType};
 use crate::settings::Settings;
-use crate::spells::Spell;
+use crate::items::Item;
 use crate::xinput_hook::{install_xinput_hook, remove_xinput_hook, set_suppress_camera};
 
 static HMODULE: OnceLock<usize> = OnceLock::new();
@@ -142,10 +142,15 @@ fn start() {
 
 lazy_static!(
     static ref SELECTED_SPELL_INDEX: AtomicI32 = AtomicI32::new(-1);
+    static ref SELECTED_QUICK_ITEM_INDEX: AtomicI32 = AtomicI32::new(-1);
 );
 
 pub fn set_selected_spell_index(idx: i32) {
     SELECTED_SPELL_INDEX.store(idx, Ordering::Relaxed);
+}
+
+pub fn set_selected_quick_item_index(idx: i32) {
+    SELECTED_QUICK_ITEM_INDEX.store(idx, Ordering::Relaxed);
 }
 
 // One may ask why I'm creating atomic structs in lazy statics.
@@ -178,7 +183,9 @@ pub fn set_in_menus(world_chr_man_dbg: &WorldChrManDbg, fe_man: &CSFeManImp) {
     );
 }
 
-static mut WAS_PLAYER_SELECTING_SPELL: bool = false;
+lazy_static!(
+    static ref PREV_WHEEL_TYPE: Arc<Mutex<WheelType>> = Arc::new(Mutex::new(WheelType::None));
+);
 fn tick(_fd4: &FD4TaskData) {
     guard!(
         run_once!("entered tick function" => {
@@ -232,37 +239,60 @@ fn tick(_fd4: &FD4TaskData) {
             game_data_man.main_player_game_data.equipment.equip_magic_data.selected_slot = selected_spell_index;
             SELECTED_SPELL_INDEX.store(-1, Ordering::Relaxed);
         }
+        let selected_quick_item_index = SELECTED_QUICK_ITEM_INDEX.load(Ordering::Relaxed);
+        if selected_quick_item_index != -1 {
+            game_data_man.main_player_game_data.equipment.equip_item_data.selected_quick_slot = selected_quick_item_index;
+            SELECTED_QUICK_ITEM_INDEX.store(-1, Ordering::Relaxed);
+        }
 
         let mut equipped_spells = Vec::with_capacity(14);
-        let data = &game_data_man.main_player_game_data.equipment.equip_magic_data;
-        for (index, spell) in data.entries.iter().enumerate() {
-            let id = spell.param_id as u32;
-            if let Some(spell) = Spell::try_new(param_repo, index as i32, id) {
-                equipped_spells.push(spell);
+        let mut equipped_quick_items = Vec::with_capacity(10);
+
+        let spell_data: Vec<_> = game_data_man.main_player_game_data
+            .equipment
+            .equip_magic_data.entries
+            .iter()
+            .map(|entry| entry.param_id as u32)
+            .enumerate()
+            .collect();
+        let quick_item_data: Vec<_> = game_data_man.main_player_game_data
+            .equipment
+            .equipment_entries
+            .quick_tems
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, entry)| entry.param_id().map(|param_id| (idx, param_id)))
+            .collect();
+
+        for (equipped, data) in [
+            (&mut equipped_spells, spell_data), (&mut equipped_quick_items, quick_item_data)
+        ] {
+            for (idx, id) in data {
+                if let Some(spell) = Item::try_new(param_repo, idx as i32, id) {
+                    equipped.push(spell);
+                }
             }
         }
+
         if is_debugging() {
             add_to_screen_debug(format!("Equipped spells: {equipped_spells:?}"));
+            add_to_screen_debug(format!("Equipped quick items: {equipped_quick_items:?}"));
         }
 
-        if equipped_spells.is_empty() {
-            return;
-        }
-
-        SpellWheelData::mutate(|data| {
+        ItemWheelData::mutate(|data| {
             data.spells = equipped_spells;
+            data.quick_items = equipped_quick_items;
         });
-        unsafe {
-            let is_player_selecting_spell = is_player_selecting_spell();
-            if WAS_PLAYER_SELECTING_SPELL != is_player_selecting_spell {
-                WAS_PLAYER_SELECTING_SPELL = is_player_selecting_spell;
-                menu_man.disable_mouse_cursor = !is_player_selecting_spell;
-                set_suppress_camera(is_player_selecting_spell);
-            }
-            SpellWheelData::mutate(|data| {
-                data.do_render = is_player_selecting_spell;
-            });
+        let selected_wheel_type = selected_wheel_type();
+        if *PREV_WHEEL_TYPE.lock().unwrap() != selected_wheel_type {
+            *PREV_WHEEL_TYPE.lock().unwrap() = selected_wheel_type;
+            let is_wheel_open = selected_wheel_type != WheelType::None;
+            menu_man.disable_mouse_cursor = !is_wheel_open;
+            set_suppress_camera(is_wheel_open);
         }
+        ItemWheelData::mutate(|data| {
+            data.wheel_type = selected_wheel_type;
+        });
 
         commit_screen_debug();
     );

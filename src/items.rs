@@ -3,14 +3,14 @@ use eldenring::cs::{EquipParamGoods, SoloParamRepository};
 use pmod::fmg::MsgRepository;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Spell {
+pub struct Item {
     index: i32,
     id: u32,
     icon_id: u16,
     name: String,
 }
 
-impl Spell {
+impl Item {
     pub fn try_new(param_repo: &SoloParamRepository, index: i32, id: u32) -> Option<Self> {
         let icon_id = param_repo.get::<EquipParamGoods>(id)
             .map(|goods| goods.icon_id())?;
@@ -41,14 +41,14 @@ impl Spell {
     }
 
     pub fn get_name(spell_id: u32) -> Option<String> {
-        const BASE_GAME_SPELL_NAME: u32 = 10;
-        const DLC_SPELL_NAME: u32 = 319;
+        const BASE_GAME_ITEM_NAME: u32 = 10;
+        const DLC_ITEM_NAME: u32 = 319;
 
         unsafe {
             read_utf16_string(MsgRepository::get_msg(
-                0, BASE_GAME_SPELL_NAME, spell_id
+                0, BASE_GAME_ITEM_NAME, spell_id
             )).or(read_utf16_string(MsgRepository::get_msg(
-                0, DLC_SPELL_NAME, spell_id
+                0, DLC_ITEM_NAME, spell_id
             )))
         }
     }

@@ -62,12 +62,14 @@ macro_rules! settings {
 }
 
 settings!(
-    key: String,
-    button: String,
+    spells_key: String,
+    quick_items_key: String,
+    spells_button: String,
+    quick_items_button: String,
     using_controller: bool,
     controller_wheel_open_delay: f32,
     switch_instantly: bool,
-    spell_names: String,
+    item_names: String,
     text_shadows: bool,
     font_scale_multiplier: f32,
     icon_scale_multiplier: f32,
@@ -79,12 +81,20 @@ settings!(
     timing_offset: f32,
 );
 
-pub fn key() -> String {
+pub fn spells_key() -> String {
     "TAB".to_string()
 }
 
-pub fn button() -> String {
+pub fn quick_items_key() -> String {
+    "CAPITAL".to_string()
+}
+
+pub fn spells_button() -> String {
     "UP".to_string()
+}
+
+pub fn quick_items_button() -> String {
+    "DOWN".to_string()
 }
 
 pub const fn using_controller() -> bool {
@@ -99,7 +109,7 @@ pub const fn switch_instantly() -> bool {
     true
 }
 
-pub fn spell_names() -> String {
+pub fn item_names() -> String {
     "show".to_string()
 }
 
@@ -140,13 +150,13 @@ pub const fn timing_offset() -> f32 {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum SpellNames {
+pub enum ItemNames {
     Show,
     Center,
     Hide
 }
 
-impl<S: AsRef<str>> From<S> for SpellNames {
+impl<S: AsRef<str>> From<S> for ItemNames {
     fn from(value: S) -> Self {
         match value.as_ref().to_lowercase().as_str() {
             "show" => Self::Show,
@@ -178,7 +188,7 @@ impl Settings {
         SETTINGS_CACHE.read().expect("Could not acquire settings cache").clone()
     }
 
-    pub fn spell_names(&self) -> SpellNames {
-        self.spell_names.as_str().into()
+    pub fn item_names(&self) -> ItemNames {
+        self.item_names.as_str().into()
     }
 }

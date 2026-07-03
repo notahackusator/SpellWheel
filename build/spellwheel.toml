@@ -2,12 +2,16 @@
 # You can visit this website for the full list of VK codes:
 # https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 # Note that you should not prefix the key with "VK_". So if you want Tab, write "TAB". If you want Alt, write "MENU".
-key = "TAB"
+spells_key = "TAB"
+
+quick_items_key = "CAPITAL"
 
 # The button used to open the spell wheel on controller. The following is a list of valid values:
 # UP, DOWN, LEFT, RIGHT, A, B, X, Y, R1, R2, R3, L1, L2, L3
 # They must be surrounded by double quotes.
-button = "UP"
+spells_button = "UP"
+
+quick_items_button = "DOWN"
 
 # Decides whether to use controller or mouse and keyboard. true for controller, false for mouse & keyboard. Default is false.
 using_controller = false
@@ -18,30 +22,30 @@ controller_wheel_open_delay = 0.5
 # Whether to switch instantly to the selected spell or wait until the wheel is closed. Default is true.
 switch_instantly = true
 
-# How to display the names of the spells. "show" to show them on each spell, "center" to show the selected spell,
+# How to display the names of the items. "show" to show them on each item, "center" to show the selected item,
 # and "hide" to hide them completely. Default is "show"
-spell_names = "show"
+item_names = "show"
 
 # Whether text shadows are enabled. Default is true.
 text_shadows = true
 
-# The amount to scale the spell name font size. Default is 1.
+# The amount to scale the item name font size. Default is 1.
 font_scale_multiplier = 1.0
 
-# The amount to scale the spell icon size. Default is 0.15.
+# The amount to scale the item icon size. Default is 0.15.
 icon_scale_multiplier = 0.15
 
-# The amount to scale the spell wheel radius. Default is 0.3.
+# The amount to scale the item wheel radius. Default is 0.3.
 radius_multiplier = 0.3
 
-# The minimum distance to move the mouse to select spells.
-# This is a fraction of the radius, so with 0.5 you have to move your mouse 50% of the radius in order to select a spell.
+# The minimum distance to move the mouse to select items.
+# This is a fraction of the radius, so with 0.5 you have to move your mouse 50% of the radius in order to select an item.
 # Default is 0.3.
 min_radius = 0.3
 
-# Paths to directories for modded spells. Empty by default.
+# Paths to directories for modded items. Empty by default.
 # The path is relative to Game/mods/spellwheel/icons.
-# If you want multiple modded spell files, you can have that too: ['path/to/mod1', 'path/to/mod2']
+# If you want multiple modded item files, you can have that too: ['path/to/mod1', 'path/to/mod2']
 #
 # The intended way is to point to a directory containing a mod/menu/hi path,
 # where the hi folder contains 01_common.sblytbnd.dcx and 01_common.tpf.dcx, which are game icon files.
