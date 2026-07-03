@@ -96,17 +96,17 @@ impl ItemWheel {
     fn switch_item(&self) {
         match self.prev_type {
             WheelType::Spells => {
-                if let Some(spell) = self.display_spells.iter()
-                    .find(|spell| spell.is_highlighted) {
+                if let Some(item) = self.display_spells.iter()
+                    .find(|item| item.is_highlighted) {
 
-                    set_selected_spell_index(spell.index);
+                    set_selected_spell_index(item.index);
                 }
             }
             WheelType::QuickItems => {
-                if let Some(spell) = self.display_spells.iter()
-                    .find(|spell| spell.is_highlighted) {
+                if let Some(item) = self.display_quick_items.iter()
+                    .find(|item| item.is_highlighted) {
 
-                    set_selected_quick_item_index(spell.index);
+                    set_selected_quick_item_index(item.index);
                 }
             }
             WheelType::None => {}
