@@ -16,6 +16,7 @@ pub mod hwindow;
 pub mod dynamic_icons;
 pub mod util;
 pub mod io;
+pub mod font;
 
 use std::fs::File;
 use std::mem;

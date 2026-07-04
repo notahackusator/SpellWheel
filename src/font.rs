@@ -1,0 +1,1 @@
+pub const FONT_LATIN_BYTES: &'static [u8] = include_bytes!("../assets/font_latin.ttf");

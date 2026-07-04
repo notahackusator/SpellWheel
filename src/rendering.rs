@@ -9,6 +9,7 @@ use hudhook::windows::Win32::Foundation::HINSTANCE;
 use crate::{guard, hmodule, paths, set_selected_quick_item_index, set_selected_spell_index, Item, HWND};
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::display_item::DisplayItem;
+use crate::font::FONT_LATIN_BYTES;
 use crate::hwindow::{get_process_window, get_window_size};
 use crate::icons::icon_manager::IconManager;
 use crate::settings::Settings;
@@ -73,7 +74,7 @@ pub enum WheelType {
 }
 
 pub struct ItemWheel {
-    font: Option<usize>,
+    font: usize,
     display_spells: Vec<DisplayItem>,
     display_quick_items: Vec<DisplayItem>,
     prev_type: WheelType,
@@ -84,7 +85,7 @@ pub struct ItemWheel {
 impl ItemWheel {
     fn new() -> Self {
         Self {
-            font: None,
+            font: 0,
             display_spells: vec![],
             display_quick_items: vec![],
             prev_type: WheelType::None,
@@ -135,13 +136,13 @@ impl ImguiRenderLoop for ItemWheel {
 
             tracing::info!("Loading font...");
 
-            self.font = read(paths::font()).map(|font_data| unsafe {
+            self.font = unsafe {
                 mem::transmute(ctx.fonts().add_font(&[FontSource::TtfData {
-                    data: &font_data,
+                    data: FONT_LATIN_BYTES,
                     size_pixels: DEFAULT_FONT_HEIGHT,
                     config: None
                 }]))
-            }).ok();
+            };
             tracing::info!("Font loaded");
             IconManager::load(render_context);
         );
@@ -155,7 +156,9 @@ impl ImguiRenderLoop for ItemWheel {
 
     fn render(&mut self, ui: &mut Ui) {
         guard!(
-            let font = self.font.map(|font| unsafe { ui.push_font(mem::transmute(font)) });
+            let font = unsafe {
+                ui.push_font(mem::transmute(self.font))
+            };
             let (wheel_type, quick_items, spells) = ItemWheelData::get(|data|
                 (data.wheel_type, data.quick_items.clone(), data.spells.clone())
             );
@@ -219,9 +222,7 @@ impl ImguiRenderLoop for ItemWheel {
                 });
 
             self.prev_type = wheel_type;
-            if let Some(font) = font {
-                font.pop();
-            }
+            font.pop();
         );
     }
 }

@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use std::io::{Error, ErrorKind};
 use std::sync::{Arc, Mutex};
 use fstools_formats::bnd4::BND4Entry;
-use hudhook::windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT, DXGI_FORMAT_BC7_UNORM};
+use hudhook::windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT, DXGI_FORMAT_R8G8B8A8_UNORM};
 use roxmltree::Node;
 use regex::Regex;
 use image_dds::ddsfile::Dds;
@@ -168,7 +168,7 @@ fn parse_atlases(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut Rea
                         return Ok(());
                     }
                     // Stores atlas
-                    let texture_id = render_context.load_texture(DXGI_FORMAT_BC7_UNORM, &icon.data, width, height)?;
+                    let texture_id = render_context.load_texture(DXGI_FORMAT_R8G8B8A8_UNORM, &icon.data, width, height)?;
                     atlas.set_texture(texture_id, width, height);
                     Ok(())
                 }));

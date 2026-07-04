@@ -65,7 +65,7 @@ pub fn log() -> PathBuf {
 #[cached]
 pub fn font() -> PathBuf {
     spellwheel()
-        .join("font.ttf")
+        .join("font_latin.ttf")
 }
 
 #[cached]

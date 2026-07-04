@@ -4,7 +4,6 @@ use std::fs::read_to_string;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use crate::paths;
-use serde::Deserialize;
 
 macro_rules! settings {
     ($($name:ident: $t:ty),*$(,)?) => {
@@ -17,7 +16,7 @@ macro_rules! settings {
 
         impl<'de> serde::Deserialize<'de> for Settings {
             fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                use serde::de::{self, MapAccess, Visitor};
+                use serde::de::{MapAccess, Visitor};
                 use std::fmt;
 
                 struct SettingsVisitor;
