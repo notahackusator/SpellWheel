@@ -44,8 +44,6 @@ radius_multiplier = 0.3
 min_radius = 0.3
 
 # Paths to directories for modded items. Empty by default.
-# The path is relative to Game/mods/spellwheel/icons.
-# If you want multiple modded item files, you can have that too: ['path/to/mod1', 'path/to/mod2']
 #
 # The intended way is to point to a directory containing a mod/menu/hi path,
 # where the hi folder contains 01_common.sblytbnd.dcx and 01_common.tpf.dcx, which are game icon files.

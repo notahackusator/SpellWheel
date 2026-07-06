@@ -171,7 +171,15 @@ lazy_static!(
 );
 impl Settings {
     pub fn open_toml() -> anyhow::Result<Self> {
-        toml::from_str(&read_to_string(paths::settings())?).map_err(anyhow::Error::new)
+        let settings_path = paths::settings();
+        let data = match read_to_string(&settings_path) {
+            Ok(data) => data,
+            Err(err) => {
+                tracing::error!("Tried to look for settings in {settings_path:?}, but encountered an error");
+                return Err(err.into());
+            }
+        };
+        toml::from_str(&data).map_err(|err| err.into())
     }
 
     pub fn read_or_default() -> Self {

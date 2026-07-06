@@ -40,15 +40,15 @@ impl Item {
         &self.name
     }
 
-    pub fn get_name(spell_id: u32) -> Option<String> {
+    pub fn get_name(id: u32) -> Option<String> {
         const BASE_GAME_ITEM_NAME: u32 = 10;
         const DLC_ITEM_NAME: u32 = 319;
 
         unsafe {
             read_utf16_string(MsgRepository::get_msg(
-                0, BASE_GAME_ITEM_NAME, spell_id
+                0, BASE_GAME_ITEM_NAME, id
             )).or(read_utf16_string(MsgRepository::get_msg(
-                0, DLC_ITEM_NAME, spell_id
+                0, DLC_ITEM_NAME, id
             )))
         }
     }

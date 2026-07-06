@@ -19,7 +19,7 @@ pub fn dll() -> PathBuf {
 }
 
 #[cached]
-pub fn mods() -> PathBuf {
+pub fn dll_folder() -> PathBuf {
     dll().parent().unwrap()
         .to_path_buf()
 }
@@ -46,14 +46,8 @@ pub fn game_directory() -> PathBuf {
 
 #[cached]
 pub fn spellwheel() -> PathBuf {
-    mods()
+    dll_folder()
         .join("spellwheel")
-}
-
-#[cached]
-pub fn spell_icons() -> PathBuf {
-    spellwheel()
-        .join("icons")
 }
 
 #[cached]
@@ -63,13 +57,7 @@ pub fn log() -> PathBuf {
 }
 
 #[cached]
-pub fn font() -> PathBuf {
-    spellwheel()
-        .join("font_latin.ttf")
-}
-
-#[cached]
 pub fn settings() -> PathBuf {
-    mods()
+    dll_folder()
         .join("spellwheel.toml")
 }

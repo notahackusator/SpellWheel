@@ -311,7 +311,7 @@ impl DisplayItem {
             }
         }
         match self.icon {
-            Some(AtlasIcon { texture_id, rect }) => {
+            Some(AtlasIcon { texture_id, rect, .. }) => {
                 let [x, y, w, h] = rect;
                 draw_list.add_image(
                     texture_id,

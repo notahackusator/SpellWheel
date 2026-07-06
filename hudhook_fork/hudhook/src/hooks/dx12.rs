@@ -233,7 +233,7 @@ unsafe extern "system" fn dxgi_swap_chain_present_impl(
     if let Err(e) = render(&swap_chain) {
         util::print_dxgi_debug_messages();
         if INIT_STATE.is_done() {
-            error!("Render error: {e:?}");
+            debug!("Render error: {e:?}");
         } else {
             error!("Render error: {e:?}");
         }

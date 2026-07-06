@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::io::{Error, ErrorKind};
+use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use fstools_formats::bnd4::BND4Entry;
 use hudhook::windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT, DXGI_FORMAT_R8G8B8A8_UNORM};
@@ -42,7 +43,7 @@ fn parse_entry(await_graphics: &mut Vec<AwaitGraphics>, read_success: &ReadSucce
     // Parses each subtexture (icon)
     for node in doc.descendants().filter(|node| node.has_tag_name("SubTexture")) {
         if let Err(err) = parse_node(await_graphics, atlas.clone(), node).add_span() {
-            tracing::error!("Error loading spells: {err}");
+            tracing::error!("Error loading icons: {err}");
         }
     }
     Ok(())
@@ -51,32 +52,42 @@ fn parse_entry(await_graphics: &mut Vec<AwaitGraphics>, read_success: &ReadSucce
 fn parse_node(await_graphics: &mut Vec<AwaitGraphics>, atlas: Arc<Mutex<Atlas>>, node: Node) -> anyhow::Result<()> {
     // parses the item id
     let raw_name = node.attribute("name").unwrap().to_string();
-    if !raw_name.contains("MENU_ItemIcon") {
+    let Some(id) = parse_name(raw_name) else {
         return Ok(());
-    }
+    };
 
+    let mut atlas_lock = atlas.lock().unwrap();
     // This prevents unnecessary atlases from loading
-    atlas.lock().unwrap().used = true;
-
-    let id_regex = Regex::new("[0-9]+").add_span()?;
-    let Some(id) = id_regex.find(&raw_name) else {
-        return Ok(());
-    };
-    let Ok(id) = id.as_str().parse() else {
-        return Ok(())
-    };
+    atlas_lock.used = true;
+    drop(atlas_lock);
 
     let rect = AtlasIcon::try_parse_rect(&node)?;
 
-    await_graphics.push(Box::new(move |_, spell_icons| {
-        let atlas_texture = atlas.lock().unwrap().atlas_texture
-            .ok_or(Error::new(ErrorKind::InvalidData, "AtlasIcon texture should be initialized"))?;
-        let icon = AtlasIcon::from_geometry(&atlas_texture, rect).add_span()?;
+    await_graphics.push(Box::new(move |_, icons| {
+        let mut atlas_lock = atlas.lock().unwrap();
+        let icon = AtlasIcon::from_geometry(atlas_lock.clone(), rect).add_span()?;
 
-        spell_icons.insert(id, icon);
+        if let Some(icon) = icons.get(&id) {
+            let this_name = &atlas_lock.name;
+            let other_name = &icon.atlas_name;
+            tracing::warn!("Overlapping item ID's: {id}. Used in this atlas ({this_name}) and ({other_name})");
+        }
+        icons.insert(id, icon);
         Ok(())
     }));
     Ok(())
+}
+
+fn parse_name(name: String) -> Option<u16> {
+    let num_start = name.trim_start_matches("MENU_ItemIcon_");
+    if num_start.len() == name.len() {
+        return None;
+    }
+
+    let num_end = num_start.find(".")?;
+    let num_str = num_start.get(..num_end)?;
+
+    num_str.parse().ok()
 }
 
 pub type Atlases = HashMap<String, Arc<Mutex<Atlas>>>;

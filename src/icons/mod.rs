@@ -6,14 +6,17 @@ pub mod await_graphics;
 mod generic_loader;
 pub mod vanilla_loader;
 
-use crate::icons::atlas::AtlasTexture;
+use std::io;
+use crate::icons::atlas::{Atlas, AtlasTexture};
 use crate::util::AddSpan;
 use imgui::TextureId;
 use roxmltree::Node;
 use std::io::{Error, ErrorKind};
+use std::sync::Arc;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AtlasIcon {
+    pub atlas_name: Arc<str>,
     pub texture_id: TextureId,
     pub rect: [f32; 4],
 }
@@ -44,8 +47,11 @@ impl AtlasIcon {
         Ok([x, y, w, h])
     }
 
-    pub fn from_geometry(atlas_texture: &AtlasTexture, rect: [f32; 4]) -> anyhow::Result<Self> {
+    pub fn from_geometry(atlas: Atlas, rect: [f32; 4]) -> anyhow::Result<Self> {
+        let atlas_texture = atlas.atlas_texture
+            .ok_or(Error::new(ErrorKind::NotFound, "Expected atlas texture to be initialized"))?;
         Ok(AtlasIcon {
+            atlas_name: atlas.name,
             texture_id: atlas_texture.texture_id,
             rect: [
                 rect[0] / atlas_texture.width as f32,

@@ -1,7 +1,9 @@
+use std::sync::Arc;
 use imgui::TextureId;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Atlas {
-    pub name: String,
+    pub name: Arc<str>,
     pub atlas_texture: Option<AtlasTexture>,
     pub used: bool,
 }
@@ -16,7 +18,7 @@ pub struct AtlasTexture {
 impl Atlas {
     pub fn new(name: String) -> Self {
         Self {
-            name,
+            name: name.into(),
             atlas_texture: None,
             used: false,
         }

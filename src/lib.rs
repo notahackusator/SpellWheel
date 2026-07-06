@@ -251,7 +251,8 @@ fn tick(_fd4: &FD4TaskData) {
 
         let spell_data: Vec<_> = game_data_man.main_player_game_data
             .equipment
-            .equip_magic_data.entries
+            .equip_magic_data
+            .entries
             .iter()
             .map(|entry| entry.param_id as u32)
             .enumerate()
@@ -269,8 +270,8 @@ fn tick(_fd4: &FD4TaskData) {
             (&mut equipped_spells, spell_data), (&mut equipped_quick_items, quick_item_data)
         ] {
             for (idx, id) in data {
-                if let Some(spell) = Item::try_new(param_repo, idx as i32, id) {
-                    equipped.push(spell);
+                if let Some(item) = Item::try_new(param_repo, idx as i32, id) {
+                    equipped.push(item);
                 }
             }
         }

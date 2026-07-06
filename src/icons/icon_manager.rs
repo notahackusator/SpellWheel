@@ -16,18 +16,18 @@ lazy_static!(
 
 pub struct IconManager {
     await_graphics: Vec<AwaitGraphics>,
-    spell_icons: HashMap<u16, AtlasIcon>,
+    icons: HashMap<u16, AtlasIcon>,
 }
 
 impl IconManager {
-    pub fn get(spell: &Item) -> Option<AtlasIcon> {
+    pub fn get(item: &Item) -> Option<AtlasIcon> {
         ICON_MANAGER.get()
             .and_then(|manager| manager.read().ok())
-            .and_then(|manager| manager.get_inner(spell))
+            .and_then(|manager| manager.get_inner(item))
     }
     
-    fn get_inner(&self, spell: &Item) -> Option<AtlasIcon> {
-        self.spell_icons.get(&spell.icon_id()).cloned()
+    fn get_inner(&self, item: &Item) -> Option<AtlasIcon> {
+        self.icons.get(&item.icon_id()).cloned()
     }
 
     pub fn init() {
@@ -41,52 +41,52 @@ impl IconManager {
     fn init_inner() -> Self {
         let mut await_graphics = vec![];
 
-        if let Err(err) = vanilla_loader::load_spells(&mut await_graphics) {
-            tracing::error!("Error loading vanilla spells: {err:?}");
+        if let Err(err) = vanilla_loader::load_icons(&mut await_graphics) {
+            tracing::error!("Error loading vanilla icons: {err:?}");
         }
 
         let mut paths = HashSet::new();
-        for modded_spells_path in Settings::read_or_default().modded_spells {
-            if modded_spells_path.contains(".") {
+        for modded_icons_path in Settings::read_or_default().modded_spells {
+            if modded_icons_path.contains(".") {
                 continue;
             }
 
-            paths.insert(modded_spells_path.into());
+            paths.insert(modded_icons_path.into());
         }
         if let Some(upstream_mod_folder) = modded_reader::search_for_mod_folder() {
             tracing::info!("Found upstream mod folder: {upstream_mod_folder:?}");
             paths.insert(upstream_mod_folder);
         }
 
-        for modded_spells_path in paths {
-            if let Err(err) = modded_loader::load_spells(&mut await_graphics, &modded_spells_path) {
-                tracing::error!("Error loading modded spells '{modded_spells_path:?}': {err:?}");
+        for modded_icons_path in paths {
+            if let Err(err) = modded_loader::load_icons(&mut await_graphics, &modded_icons_path) {
+                tracing::error!("Error loading modded icons '{modded_icons_path:?}': {err:?}");
             }
         }
 
         Self {
             await_graphics,
-            spell_icons: Default::default(),
+            icons: Default::default(),
         }
     }
     
     pub fn load(render_context: &mut dyn RenderContext) {
-        tracing::info!("Loading spell icons...");
+        tracing::info!("Loading icons...");
         ICON_MANAGER.get().expect("IconManager was never initialized")
             .write()
             .unwrap()
             .load_inner(render_context);
-        tracing::info!("Finished loading spell icons");
+        tracing::info!("Finished loading icons");
     }
     
     fn load_inner(&mut self, render_context: &mut dyn RenderContext) {
         let start = Instant::now();
         for await_graphics in take(&mut self.await_graphics) {
-            if let Err(err) = await_graphics(render_context, &mut self.spell_icons) {
+            if let Err(err) = await_graphics(render_context, &mut self.icons) {
                 tracing::error!("Error loading icons: {err}");
             }
         }
         let time = start.elapsed();
-        tracing::info!("Finished loading spells graphics in {time:?}");
+        tracing::info!("Finished loading icon graphics in {time:?}");
     }
 }
