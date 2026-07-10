@@ -53,14 +53,14 @@ pub fn selected_wheel_type() -> WheelType {
 				let pressed = gamepad_state().pressed_duration(button_code);
 				let out = pressed.is_some_and(|duration| duration.as_secs_f32() > settings.controller_wheel_open_delay);
 				if is_debugging() {
-					run_every!("button valid / pressed" every Duration::from_secs(1) => {
-					let button_code = match button_code {
-						Ok(code) => code.0.to_string(),
-						Err(is_r2) if is_r2 => "R2".to_string(),
-						Err(_) => "L2".to_string(),
-					};
-					tracing::info!("{button}: code = {button_code}, valid? = {button_valid}, pressed? = {}, focused? = {}", out, is_game_focused())
-				});
+					run_every!(format!("{wheel_type:?} button valid / pressed"); every Duration::from_secs(1) => {
+						let button_code = match button_code {
+							Ok(code) => code.0.to_string(),
+							Err(is_r2) if is_r2 => "R2".to_string(),
+							Err(_) => "L2".to_string(),
+						};
+						tracing::info!("{button}: code = {button_code}, valid? = {button_valid}, pressed? = {}, focused? = {}", out, is_game_focused())
+					});
 				}
 				*prev_button_mutex = Some(button);
 				if out {
@@ -84,9 +84,9 @@ pub fn selected_wheel_type() -> WheelType {
 					.unwrap_or(&raw_key_default.0) as i32;
 				let out = keyboard::is_pressed(key_code);
 				if is_debugging() {
-					run_every!("key valid / pressed" every Duration::from_secs(1) => {
-					tracing::info!("{key}: code = {key_code}, valid? = {key_valid}, pressed? = {}, focused? = {}", is_key_pressed(key_code), is_game_focused())
-				});
+					run_every!(format!("{wheel_type:?} key valid / pressed"); every Duration::from_secs(1) => {
+						tracing::info!("{key}: code = {key_code}, valid? = {key_valid}, pressed? = {}, focused? = {}", is_key_pressed(key_code), is_game_focused())
+					});
 				}
 				*prev_key_mutex = Some(key);
 				if out {

@@ -6,8 +6,7 @@ pub mod await_graphics;
 mod generic_loader;
 pub mod vanilla_loader;
 
-use std::io;
-use crate::icons::atlas::{Atlas, AtlasTexture};
+use crate::icons::atlas::Atlas;
 use crate::util::AddSpan;
 use imgui::TextureId;
 use roxmltree::Node;

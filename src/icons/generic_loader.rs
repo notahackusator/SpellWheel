@@ -1,12 +1,10 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::io::{Error, ErrorKind};
-use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use fstools_formats::bnd4::BND4Entry;
 use hudhook::windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT, DXGI_FORMAT_R8G8B8A8_UNORM};
 use roxmltree::Node;
-use regex::Regex;
 use image_dds::ddsfile::Dds;
 use crate::dynamic_icons::read_success::ReadSuccess;
 use crate::icons::atlas::Atlas;
@@ -64,7 +62,7 @@ fn parse_node(await_graphics: &mut Vec<AwaitGraphics>, atlas: Arc<Mutex<Atlas>>,
     let rect = AtlasIcon::try_parse_rect(&node)?;
 
     await_graphics.push(Box::new(move |_, icons| {
-        let mut atlas_lock = atlas.lock().unwrap();
+        let atlas_lock = atlas.lock().unwrap();
         let icon = AtlasIcon::from_geometry(atlas_lock.clone(), rect).add_span()?;
 
         if let Some(icon) = icons.get(&id) {

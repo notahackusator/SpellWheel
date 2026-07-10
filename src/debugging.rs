@@ -81,7 +81,7 @@ pub unsafe fn log_all_spell_data_hopefully(param_repo: &mut SoloParamRepository)
 }
 
 pub struct RunEveryRegistry {
-    code: HashMap<&'static str, (Duration, Instant)>
+    code: HashMap<String, (Duration, Instant)>
 }
 
 lazy_static!(
@@ -95,13 +95,35 @@ impl RunEveryRegistry {
         }
     }
 
-    pub fn can_run(name: &'static str, every: Duration) -> bool {
+    pub fn can_run(name: &str, every: Duration) -> bool {
         RUN_EVERY_REGISTRY.write().expect("RUN_EVERY_REGISTRY owner panicked")
             .can_run_inner(name, every)
     }
 
-    fn can_run_inner(&mut self, name: &'static str, every: Duration) -> bool {
+    pub fn can_run_string(name: String, every: Duration) -> bool {
+        RUN_EVERY_REGISTRY.write().expect("RUN_EVERY_REGISTRY owner panicked")
+            .can_run_inner_string(name, every)
+    }
+
+    fn can_run_inner(&mut self, name: &str, every: Duration) -> bool {
         match self.code.get_mut(name) {
+            Some((duration, start)) => {
+                let now = Instant::now();
+                if now - *start >= *duration {
+                    *start = Instant::now();
+                    return true;
+                }
+                false
+            }
+            None => {
+                self.code.insert(name.to_string(), (every, Instant::now()));
+                true
+            }
+        }
+    }
+
+    fn can_run_inner_string(&mut self, name: String, every: Duration) -> bool {
+        match self.code.get_mut(&name) {
             Some((duration, start)) => {
                 let now = Instant::now();
                 if now - *start >= *duration {
@@ -119,8 +141,11 @@ impl RunEveryRegistry {
 }
 
 macro_rules! run_every {
-    ($some_unique_string:literal every $duration:expr => $code:block) => {
-        if crate::debugging::RunEveryRegistry::can_run($some_unique_string, $duration) $code
+    ($some_unique_string_literal:literal every $duration:expr => $code:block) => {
+        if crate::debugging::RunEveryRegistry::can_run($some_unique_string_literal, $duration) $code
+    };
+    ($some_unique_string:expr; every $duration:expr => $code:block) => {
+        if crate::debugging::RunEveryRegistry::can_run_string($some_unique_string, $duration) $code
     };
 }
 

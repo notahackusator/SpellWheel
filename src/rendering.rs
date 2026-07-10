@@ -1,4 +1,3 @@
-use std::fs::read;
 use std::mem;
 use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
 use imgui::{Context, FontSource, Ui, WindowFlags};
@@ -6,10 +5,10 @@ use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
-use crate::{guard, hmodule, paths, set_selected_quick_item_index, set_selected_spell_index, Item, HWND};
+use crate::{guard, hmodule, set_selected_quick_item_index, set_selected_spell_index, Item, HWND};
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::display_item::DisplayItem;
-use crate::font::FONT_LATIN_BYTES;
+use crate::font::{create_font_sources, FontId};
 use crate::hwindow::{get_process_window, get_window_size};
 use crate::icons::icon_manager::IconManager;
 use crate::settings::Settings;
@@ -74,7 +73,8 @@ pub enum WheelType {
 }
 
 pub struct ItemWheel {
-    font: usize,
+    font_bytes: Vec<Vec<u8>>,
+    font: FontId,
     display_spells: Vec<DisplayItem>,
     display_quick_items: Vec<DisplayItem>,
     prev_type: WheelType,
@@ -85,7 +85,8 @@ pub struct ItemWheel {
 impl ItemWheel {
     fn new() -> Self {
         Self {
-            font: 0,
+            font_bytes: vec![],
+            font: FontId::none(),
             display_spells: vec![],
             display_quick_items: vec![],
             prev_type: WheelType::None,
@@ -115,7 +116,6 @@ impl ItemWheel {
     }
 }
 
-const DEFAULT_FONT_HEIGHT: f32 = 54.0;
 const DEFAULT_SCREEN_MIN: f32 = 2160.0;
 
 impl ItemWheel {
@@ -136,13 +136,10 @@ impl ImguiRenderLoop for ItemWheel {
 
             tracing::info!("Loading font...");
 
-            self.font = unsafe {
-                mem::transmute(ctx.fonts().add_font(&[FontSource::TtfData {
-                    data: FONT_LATIN_BYTES,
-                    size_pixels: DEFAULT_FONT_HEIGHT,
-                    config: None
-                }]))
-            };
+            create_font_sources!(font_bytes, font_data; then: {
+                self.font = ctx.fonts().add_font(&font_data).into();
+                self.font_bytes = font_bytes;
+            });
             tracing::info!("Font loaded");
             IconManager::load(render_context);
         );
@@ -156,9 +153,7 @@ impl ImguiRenderLoop for ItemWheel {
 
     fn render(&mut self, ui: &mut Ui) {
         guard!(
-            let font = unsafe {
-                ui.push_font(mem::transmute(self.font))
-            };
+            let font = ui.push_font(self.font.into());
             let (wheel_type, quick_items, spells) = ItemWheelData::get(|data|
                 (data.wheel_type, data.quick_items.clone(), data.spells.clone())
             );
