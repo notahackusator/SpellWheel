@@ -1,4 +1,4 @@
-/// Ported from SoulsFormats
+//! Ported from SoulsFormats
 
 use anyhow::{bail, Result};
 

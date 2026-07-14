@@ -74,7 +74,6 @@ pub enum WheelType {
 }
 
 pub struct ItemWheel {
-    font_bytes: Vec<Vec<u8>>,
     font: FontId,
     display_spells: Vec<DisplayItem>,
     display_quick_items: Vec<DisplayItem>,
@@ -86,7 +85,6 @@ pub struct ItemWheel {
 impl ItemWheel {
     fn new() -> Self {
         Self {
-            font_bytes: vec![],
             font: FontId::none(),
             display_spells: vec![],
             display_quick_items: vec![],

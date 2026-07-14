@@ -1,4 +1,3 @@
-pub mod reader;
 pub mod builder;
 pub mod vanilla_reader;
 pub mod fmg;

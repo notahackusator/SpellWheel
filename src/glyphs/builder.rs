@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-pub fn build_glyph_ranges<'a>(chars: impl Iterator<Item = char>) -> Vec<u32> {
+pub fn build_glyph_ranges(chars: impl Iterator<Item = char>) -> Vec<u32> {
     let mut codepoints = BTreeSet::new();
     for c in chars {
         let cp = c as u32;

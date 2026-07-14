@@ -10,8 +10,8 @@ use crate::paths;
 use crate::settings::Settings;
 
 
-pub const FONT_LATIN_BYTES: &'static [u8] = include_bytes!("../../assets/font_latin.ttf");
-pub const OTHER_FONTS: [(&'static str, &'static str); 6] = [
+pub const FONT_LATIN_BYTES: &[u8] = include_bytes!("../../assets/font_latin.ttf");
+pub const OTHER_FONTS: [(&str, &str); 6] = [
     ("cyrillic.ttf", "rusru"),
     ("japanese.ttf", "jpnjp"),
     ("korean.ttf", "korkr"),
