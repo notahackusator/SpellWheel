@@ -1,6 +1,6 @@
 use std::mem;
 use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
-use imgui::{Context, FontSource, Ui, WindowFlags};
+use imgui::{Context, Ui, WindowFlags};
 use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
@@ -8,7 +8,8 @@ use hudhook::windows::Win32::Foundation::HINSTANCE;
 use crate::{guard, hmodule, set_selected_quick_item_index, set_selected_spell_index, Item, HWND};
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::display_item::DisplayItem;
-use crate::font::{create_font_sources, FontId};
+use crate::font::FontId;
+use crate::glyphs::font_manager::FontManager;
 use crate::hwindow::{get_process_window, get_window_size};
 use crate::icons::icon_manager::IconManager;
 use crate::settings::Settings;
@@ -136,10 +137,7 @@ impl ImguiRenderLoop for ItemWheel {
 
             tracing::info!("Loading font...");
 
-            create_font_sources!(font_bytes, font_data; then: {
-                self.font = ctx.fonts().add_font(&font_data).into();
-                self.font_bytes = font_bytes;
-            });
+            self.font = ctx.fonts().add_font(FontManager::generate_sources().as_ref()).into();
             tracing::info!("Font loaded");
             IconManager::load(render_context);
         );

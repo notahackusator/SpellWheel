@@ -1,4 +1,4 @@
-use crate::debugging::run_every;
+use crate::debugging::{run_every, run_once};
 use lazy_static::lazy_static;
 use std::fs::read_to_string;
 use std::sync::{Arc, RwLock};
@@ -74,6 +74,7 @@ settings!(
     icon_scale_multiplier: f32,
     radius_multiplier: f32,
     min_radius: f32,
+    mods: Vec<String>,
     modded_spells: Vec<String>,
     await_xinput_hook: bool,
     debugging: bool,
@@ -130,6 +131,10 @@ pub const fn icon_scale_multiplier() -> f32 {
 
 pub const fn radius_multiplier() -> f32 {
     0.3
+}
+
+pub fn mods() -> Vec<String> {
+    Vec::new()
 }
 
 pub fn modded_spells() -> Vec<String> {
@@ -193,6 +198,23 @@ impl Settings {
         });
 
         SETTINGS_CACHE.read().expect("Could not acquire settings cache").clone()
+    }
+    
+    pub fn mods(&self) -> &[String] {
+        match (self.mods.is_empty(), self.modded_spells.is_empty()) {
+            (true, true) => &[],
+            (true, false) => &self.modded_spells,
+            (false, true) => &self.mods,
+            (false, false) => {
+                run_once!("Settings::mods" => {
+                    tracing::warn!(
+                        "Both 'mods' and 'modded_spells' aren't empty. Defaulting to 'mods'.\n\
+                        'modded_spells' is old and 'mods' should be used instead"
+                    );
+                });
+                &self.mods
+            }
+        }
     }
 
     pub fn item_names(&self) -> ItemNames {

@@ -17,6 +17,7 @@ pub mod dynamic_icons;
 pub mod util;
 pub mod io;
 pub mod font;
+pub mod glyphs;
 
 use std::fs::File;
 use std::mem;
@@ -35,6 +36,7 @@ use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, r
 use crate::gamepad::{set_gamepad_state, update_gamepad_state, GamepadState};
 use crate::icons::icon_manager::IconManager;
 use io::selected_wheel_type;
+use crate::glyphs::font_manager::FontManager;
 use crate::rendering::{try_init_rendering, remove_hudhook, ItemWheelData, WheelType};
 use crate::settings::Settings;
 use crate::items::Item;
@@ -124,8 +126,9 @@ fn start() {
         install_xinput_hook();
     }
 
-    tracing::info!("Initializing IconManager asynchronously");
+    tracing::info!("Initializing IconManager and FontManager asynchronously");
     std::thread::spawn(IconManager::init);
+    std::thread::spawn(FontManager::init);
 
     tracing::info!("Init complete");
     let tasks = unsafe { CSTaskImp::instance() }.expect("Could not get CSTaskImp");
@@ -279,6 +282,11 @@ fn tick(_fd4: &FD4TaskData) {
         if is_debugging() {
             add_to_screen_debug(format!("Equipped spells: {equipped_spells:?}"));
             add_to_screen_debug(format!("Equipped quick items: {equipped_quick_items:?}"));
+
+            run_every!("D equipped" every Duration::from_secs(1) => {
+                tracing::info!("Equipped spells: {equipped_spells:?}");
+                tracing::info!("Equipped quick items: {equipped_quick_items:?}");
+            });
         }
 
         ItemWheelData::mutate(|data| {

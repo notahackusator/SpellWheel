@@ -46,7 +46,7 @@ impl IconManager {
         }
 
         let mut paths = HashSet::new();
-        for modded_icons_path in Settings::read_or_default().modded_spells {
+        for modded_icons_path in Settings::read_or_default().mods() {
             if modded_icons_path.contains(".") {
                 continue;
             }

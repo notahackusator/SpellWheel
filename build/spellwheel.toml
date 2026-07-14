@@ -47,9 +47,10 @@ min_radius = 0.3
 #
 # The intended way is to point to a directory containing a mod/menu/hi path,
 # where the hi folder contains 01_common.sblytbnd.dcx and 01_common.tpf.dcx, which are game icon files.
+# This will also read into mod/msg/*language* for item names so that fonts for other languages don't break.
 #
 # For Convergence / ERR support, read the mod description.
-modded_spells = []
+mods = []
 
 # Waits before hooking into controller inputs.
 await_xinput_hook = false

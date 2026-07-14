@@ -11,6 +11,9 @@ pub struct Item {
 }
 
 impl Item {
+    pub const BASE_GAME_ITEM_NAME: u32 = 10;
+    pub const DLC_ITEM_NAME: u32 = 319;
+    
     pub fn try_new(param_repo: &SoloParamRepository, index: i32, id: u32) -> Option<Self> {
         let icon_id = param_repo.get::<EquipParamGoods>(id)
             .map(|goods| goods.icon_id())?;
@@ -41,14 +44,11 @@ impl Item {
     }
 
     pub fn get_name(id: u32) -> Option<String> {
-        const BASE_GAME_ITEM_NAME: u32 = 10;
-        const DLC_ITEM_NAME: u32 = 319;
-
         unsafe {
             read_utf16_string(MsgRepository::get_msg(
-                0, BASE_GAME_ITEM_NAME, id
+                0, Self::BASE_GAME_ITEM_NAME, id
             )).or(read_utf16_string(MsgRepository::get_msg(
-                0, DLC_ITEM_NAME, id
+                0, Self::DLC_ITEM_NAME, id
             )))
         }
     }
