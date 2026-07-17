@@ -39,6 +39,9 @@ impl IconManager {
     }
 
     fn init_inner() -> Self {
+        #[cfg(feature = "atlas-dump")]
+        crate::icons::atlas_dump::delete_previous_dumps();
+
         let mut await_graphics = vec![];
 
         if let Err(err) = vanilla_loader::load_icons(&mut await_graphics) {
@@ -77,6 +80,9 @@ impl IconManager {
             .unwrap()
             .load_inner(render_context);
         tracing::info!("Finished loading icons");
+
+        #[cfg(feature = "atlas-dump")]
+        crate::icons::atlas_dump::dump_icon_data();
     }
     
     fn load_inner(&mut self, render_context: &mut dyn RenderContext) {

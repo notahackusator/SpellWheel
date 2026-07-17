@@ -5,6 +5,8 @@ pub mod atlas;
 pub mod await_graphics;
 mod generic_loader;
 pub mod vanilla_loader;
+#[cfg(feature = "atlas-dump")]
+pub mod atlas_dump;
 
 use crate::icons::atlas::Atlas;
 use crate::util::AddSpan;
@@ -15,9 +17,12 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AtlasIcon {
+    pub atlas_source: Arc<str>,
     pub atlas_name: Arc<str>,
     pub texture_id: TextureId,
     pub rect: [f32; 4],
+    #[cfg(feature = "atlas-dump")]
+    pub original_rect: [f32; 4],
 }
 
 impl AtlasIcon {
@@ -50,13 +55,21 @@ impl AtlasIcon {
         let atlas_texture = atlas.atlas_texture
             .ok_or(Error::new(ErrorKind::NotFound, "Expected atlas texture to be initialized"))?;
         Ok(AtlasIcon {
+            atlas_source: atlas.source,
             atlas_name: atlas.name,
             texture_id: atlas_texture.texture_id,
             rect: [
                 rect[0] / atlas_texture.width as f32,
                 rect[1] / atlas_texture.height as f32,
                 rect[2] / atlas_texture.width as f32,
-                rect[3] / atlas_texture.height as f32
+                rect[3] / atlas_texture.height as f32,
+            ],
+            #[cfg(feature = "atlas-dump")]
+            original_rect: [
+                rect[0],
+                rect[1],
+                rect[2],
+                rect[3],
             ]
         })
     }

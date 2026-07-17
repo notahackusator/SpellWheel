@@ -6,14 +6,16 @@ use fstools_formats::bnd4::BND4Entry;
 use hudhook::windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT, DXGI_FORMAT_R8G8B8A8_UNORM};
 use roxmltree::Node;
 use image_dds::ddsfile::Dds;
+use crate::debugging::is_debugging;
 use crate::dynamic_icons::read_success::ReadSuccess;
 use crate::icons::atlas::Atlas;
 use crate::icons::AtlasIcon;
 use crate::icons::await_graphics::AwaitGraphics;
+use crate::icons::vanilla_loader::BASE_GAME_SOURCE;
 use crate::util::AddSpan;
 
-pub fn parse_bnd_and_tpf(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut ReadSuccess) -> anyhow::Result<AtlasSize> {
-    let (atlases, atlas_size) = parse_atlases(await_graphics, read_success)?;
+pub fn parse_bnd_and_tpf(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut ReadSuccess) -> anyhow::Result<AtlasSize> {
+    let (atlases, atlas_size) = parse_atlases(source, await_graphics, read_success)?;
 
     for entry in read_success.bnd.files.iter() {
         parse_entry(await_graphics, read_success, &atlases, entry).add_span()?;
@@ -21,7 +23,7 @@ pub fn parse_bnd_and_tpf(await_graphics: &mut Vec<AwaitGraphics>, read_success: 
     Ok(atlas_size)
 }
 
-fn parse_entry(await_graphics: &mut Vec<AwaitGraphics>, read_success: &ReadSuccess, atlases: &HashMap<String, Arc<Mutex<Atlas>>>, entry: &BND4Entry) -> anyhow::Result<()> {
+fn parse_entry(await_graphics: &mut Vec<AwaitGraphics>, read_success: &ReadSuccess, atlases: &Atlases, entry: &BND4Entry) -> anyhow::Result<()> {
     let xml_bytes = read_success.bnd.file_bytes(entry);
     let xml_str = std::str::from_utf8(xml_bytes).add_span()?;
 
@@ -50,7 +52,11 @@ fn parse_entry(await_graphics: &mut Vec<AwaitGraphics>, read_success: &ReadSucce
 fn parse_node(await_graphics: &mut Vec<AwaitGraphics>, atlas: Arc<Mutex<Atlas>>, node: Node) -> anyhow::Result<()> {
     // parses the item id
     let raw_name = node.attribute("name").unwrap().to_string();
-    let Some(id) = parse_name(raw_name) else {
+    let parsed = parse_name(&raw_name);
+    if is_debugging() {
+        tracing::info!("Parsing node {raw_name}. Result = {parsed:?}");
+    }
+    let Some(id) = parsed else {
         return Ok(());
     };
 
@@ -64,19 +70,34 @@ fn parse_node(await_graphics: &mut Vec<AwaitGraphics>, atlas: Arc<Mutex<Atlas>>,
     await_graphics.push(Box::new(move |_, icons| {
         let atlas_lock = atlas.lock().unwrap();
         let icon = AtlasIcon::from_geometry(atlas_lock.clone(), rect).add_span()?;
+        #[cfg(feature = "atlas-dump")]
+        crate::icons::atlas_dump::upload_icon_data(id, &icon);
 
-        if let Some(icon) = icons.get(&id) {
-            let this_name = &atlas_lock.name;
-            let other_name = &icon.atlas_name;
-            tracing::warn!("Overlapping item ID's: {id}. Used in this atlas ({this_name}) and ({other_name})");
+        // Duplicate icons. Skip overlapping from modded to modded, keep from vanilla to modded
+        if let Some(old_icon) = icons.get(&id) {
+            let skip = old_icon.atlas_source.as_ref() != BASE_GAME_SOURCE;
+            let skip_or_keep_text = if skip {
+                "Skipping"
+            } else {
+                "Keeping"
+            };
+            if is_debugging() {
+                tracing::warn!("Overlapping item ID's: {id}. {skip_or_keep_text}:\n\tThis: {icon:?}\n\tOld: {old_icon:?}");
+            } else {
+                tracing::warn!("Overlapping item ID's: {id}. {skip_or_keep_text}.");
+            }
+            if skip {
+                return Ok(());
+            }
         }
+
         icons.insert(id, icon);
         Ok(())
     }));
     Ok(())
 }
 
-fn parse_name(name: String) -> Option<u16> {
+fn parse_name(name: &str) -> Option<u16> {
     let num_start = name.trim_start_matches("MENU_ItemIcon_");
     if num_start.len() == name.len() {
         return None;
@@ -132,7 +153,8 @@ impl AtlasSize {
     }
 }
 
-fn parse_atlases(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut ReadSuccess) -> anyhow::Result<(Atlases, AtlasSize)> {
+fn parse_atlases(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut ReadSuccess) -> anyhow::Result<(Atlases, AtlasSize)> {
+    let source: Arc<str> = Arc::from(source.as_str());
     let mut atlases = HashMap::new();
 
     let mut size_u = 0;
@@ -140,7 +162,12 @@ fn parse_atlases(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut Rea
 
     // Converts TPF to atlases
     for texture in read_success.tpf.textures.iter() {
-        let atlas = Arc::new(Mutex::new(Atlas::new(texture.name.clone())));
+        if atlases.contains_key(&texture.name) {
+            tracing::warn!("Atlases already contain atlas {}, skipping this one", texture.name);
+            continue;
+        }
+        tracing::info!("Parsing atlas {}. Debug data: {texture:?}", texture.name);
+        let atlas = Arc::new(Mutex::new(Atlas::new(texture.name.clone(), source.clone())));
         atlases.insert(texture.name.clone(), atlas.clone());
 
         // Reads DDS compressed texture
@@ -148,6 +175,9 @@ fn parse_atlases(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut Rea
         let dds = Dds::read(dds_bytes.as_slice()).add_span()?;
         match dds.get_dxgi_format() {
             Some(format) => {
+                #[cfg(feature = "atlas-dump")]
+                crate::icons::atlas_dump::dump_atlas(&atlas.lock().unwrap().name, crate::icons::atlas_dump::DumpedAtlas::Dxgi(&dds));
+
                 size_c += dds_bytes.len() as u32;
                 await_graphics.push(Box::new(move |render_context, _| {
                     let mut atlas = atlas.lock().unwrap();
@@ -166,6 +196,10 @@ fn parse_atlases(await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut Rea
                 // Converts to image
                 let surface = image_dds::Surface::from_dds(&dds)?;
                 let icon = surface.decode_rgba8().add_span()?;
+
+                #[cfg(feature = "atlas-dump")]
+                crate::icons::atlas_dump::dump_atlas(&atlas.lock().unwrap().name, crate::icons::atlas_dump::DumpedAtlas::Rgba(&icon));
+
                 let width = icon.width;
                 let height = icon.height;
 
