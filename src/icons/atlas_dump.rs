@@ -26,6 +26,39 @@ pub fn delete_previous_dumps() {
     }
 }
 
+pub fn dump_dds(atlas_name: &str, dds: &Dds) {
+    let f = File::create(paths::spellwheel().join(atlas_name).with_extension("dds"))
+        .expect("Couldn't create icon DDS data dump file");
+    let mut f = BufWriter::new(f);
+
+    writeln!(f, "header width={}", dds.header.width).expect("Can't write to icon DDS data dump file");
+    writeln!(f, "header height={}", dds.header.height).expect("Can't write to icon DDS data dump file");
+    writeln!(f, "header pitch={:?}", dds.header.pitch).expect("Can't write to icon DDS data dump file");
+    writeln!(f, "header linear_size={:?}", dds.header.linear_size).expect("Can't write to icon DDS data dump file");
+    writeln!(f, "header depth={:?}", dds.header.depth).expect("Can't write to icon DDS data dump file");
+    writeln!(f, "header mip_map_count={:?}", dds.header.mip_map_count).expect("Can't write to icon DDS data dump file");
+    writeln!(f, "header spf={:?}", dds.header.spf).expect("Can't write to icon DDS data dump file");
+    writeln!(f, "header caps={:?}", dds.header.caps).expect("Can't write to icon DDS data dump file");
+    writeln!(f, "header caps2={:?}", dds.header.caps2).expect("Can't write to icon DDS data dump file");
+
+    writeln!(f).expect("Can't write to icon DDS data dump file");
+
+    writeln!(f, "header10 ok?={:?}", dds.header10.is_some()).expect("Can't write to icon DDS data dump file");
+    if let Some(header10) = &dds.header10 {
+        writeln!(f, "header10 dxgi_format={:?}", header10.dxgi_format).expect("Can't write to icon DDS data dump file");
+        writeln!(f, "header10 resource_dimension={:?}", header10.resource_dimension).expect("Can't write to icon DDS data dump file");
+        writeln!(f, "header10 misc_flag={:?}", header10.misc_flag).expect("Can't write to icon DDS data dump file");
+        writeln!(f, "header10 array_size={}", header10.array_size).expect("Can't write to icon DDS data dump file");
+        writeln!(f, "header10 alpha_mode={:?}", header10.alpha_mode).expect("Can't write to icon DDS data dump file");
+    }
+
+    writeln!(f).expect("Can't write to icon DDS data dump file");
+
+    writeln!(f).expect("Data:");
+
+    f.write_all(&dds.data).expect("Can't write to icon DDS data dump file");
+}
+
 pub enum DumpedAtlas<'a> {
     Dxgi(&'a Dds),
     Rgba(&'a SurfaceRgba8<Vec<u8>>),

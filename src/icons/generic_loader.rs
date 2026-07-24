@@ -12,6 +12,7 @@ use crate::icons::atlas::Atlas;
 use crate::icons::AtlasIcon;
 use crate::icons::await_graphics::AwaitGraphics;
 use crate::icons::vanilla_loader::BASE_GAME_SOURCE;
+use crate::settings::Settings;
 use crate::util::AddSpan;
 
 pub fn parse_bnd_and_tpf(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_success: &mut ReadSuccess) -> anyhow::Result<AtlasSize> {
@@ -163,20 +164,34 @@ fn parse_atlases(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_s
     // Converts TPF to atlases
     for texture in read_success.tpf.textures.iter() {
         if atlases.contains_key(&texture.name) {
-            tracing::warn!("Atlases already contain atlas {}, skipping this one", texture.name);
+            if is_debugging() {
+                tracing::warn!("Atlases already contain atlas {}, skipping this one", texture.name);
+            }
             continue;
         }
-        tracing::info!("Parsing atlas {}. Debug data: {texture:?}", texture.name);
+        if is_debugging() {
+            tracing::info!("Parsing atlas {}. Debug data: {texture:?}", texture.name);
+        }
         let atlas = Arc::new(Mutex::new(Atlas::new(texture.name.clone(), source.clone())));
         atlases.insert(texture.name.clone(), atlas.clone());
+
+        let force_rgba = Settings::read_or_default().force_rgba;
+        tracing::info!("Force RGBA? = {force_rgba}");
 
         // Reads DDS compressed texture
         let dds_bytes = texture.bytes(&mut read_success.tpf_cursor).add_span()?;
         let dds = Dds::read(dds_bytes.as_slice()).add_span()?;
-        match dds.get_dxgi_format() {
-            Some(format) => {
+        #[cfg(feature = "atlas-dump")]
+        crate::icons::atlas_dump::dump_dds(&atlas.lock().unwrap().name, &dds);
+
+        match (force_rgba, dds.get_dxgi_format()) {
+            (false, Some(format)) => {
                 #[cfg(feature = "atlas-dump")]
                 crate::icons::atlas_dump::dump_atlas(&atlas.lock().unwrap().name, crate::icons::atlas_dump::DumpedAtlas::Dxgi(&dds));
+
+                if is_debugging() {
+                    tracing::info!(" Format for {}: {format:?}. Layers: {} Resolution: {}x{}", texture.name, dds.get_num_array_layers(), dds.get_width(), dds.get_height());
+                }
 
                 size_c += dds_bytes.len() as u32;
                 await_graphics.push(Box::new(move |render_context, _| {
@@ -192,13 +207,17 @@ fn parse_atlases(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_s
                     Ok(())
                 }));
             }
-            None => {
+            _ => {
                 // Converts to image
                 let surface = image_dds::Surface::from_dds(&dds)?;
                 let icon = surface.decode_rgba8().add_span()?;
 
                 #[cfg(feature = "atlas-dump")]
                 crate::icons::atlas_dump::dump_atlas(&atlas.lock().unwrap().name, crate::icons::atlas_dump::DumpedAtlas::Rgba(&icon));
+
+                if is_debugging() {
+                    tracing::info!(" No format found for {}. Layers: {} (DDS), {} (RGBA) Resolution: {}x{}", texture.name, dds.get_num_array_layers(), icon.layers, dds.get_width(), dds.get_height());
+                }
 
                 let width = icon.width;
                 let height = icon.height;

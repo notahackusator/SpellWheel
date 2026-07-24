@@ -54,3 +54,6 @@ mods = []
 
 # Waits before hooking into controller inputs.
 await_xinput_hook = false
+
+# Forces RGBA encoding. Increases VRAM usage, but may fix rendering bugs. Default is false.
+force_rgba = false

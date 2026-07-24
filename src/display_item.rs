@@ -320,6 +320,7 @@ impl DisplayItem {
                 )
                     .uv_min([x, y])
                     .uv_max([x + w, y + h])
+                    .col(0xFE_FF_FF_FF)
                     .build()
             },
             None => draw_list.add_rect(

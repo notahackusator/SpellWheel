@@ -79,6 +79,7 @@ settings!(
     await_xinput_hook: bool,
     debugging: bool,
     timing_offset: f32,
+    force_rgba: bool,
 );
 
 pub fn spells_key() -> String {
@@ -151,6 +152,10 @@ pub const fn min_radius() -> f32 {
 
 pub const fn timing_offset() -> f32 {
     0.0
+}
+
+pub const fn force_rgba() -> bool {
+    false
 }
 
 #[derive(Clone, Copy, Debug)]
