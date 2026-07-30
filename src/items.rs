@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use std::ptr::NonNull;
 use eldenring::cs::{EquipParamGoods, SoloParamRepository};
 use pmod::fmg::MsgRepository;
@@ -10,16 +11,31 @@ pub struct Item {
     name: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ItemCreationError {
+    InvalidID,
+    MissingName,
+}
+
+impl Display for ItemCreationError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidID => write!(f, "InvalidID"),
+            Self::MissingName => write!(f, "MissingName"),
+        }
+    }
+}
+
 impl Item {
     pub const BASE_GAME_ITEM_NAME: u32 = 10;
     pub const DLC_ITEM_NAME: u32 = 319;
     
-    pub fn try_new(param_repo: &SoloParamRepository, index: i32, id: u32) -> Option<Self> {
+    pub fn try_new(param_repo: &SoloParamRepository, index: i32, id: u32) -> Result<Self, ItemCreationError> {
         let icon_id = param_repo.get::<EquipParamGoods>(id)
-            .map(|goods| goods.icon_id())?;
-        let name = Self::get_name(id)?;
+            .map(|goods| goods.icon_id()).ok_or(ItemCreationError::InvalidID)?;
+        let name = Self::get_name(id).ok_or(ItemCreationError::MissingName)?;
         
-        Some(Self {
+        Ok(Self {
             index,
             id,
             icon_id,

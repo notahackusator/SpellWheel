@@ -1,16 +1,15 @@
-use std::mem;
 use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
 use imgui::{Context, Ui, WindowFlags};
 use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
-use crate::{guard, hmodule, set_selected_quick_item_index, set_selected_spell_index, Item, HWND};
+use crate::{guard, hmodule, set_selected_quick_item_index, set_selected_spell_index, Item, set_hwnd};
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::display_item::DisplayItem;
 use crate::font::FontId;
 use crate::glyphs::font_manager::FontManager;
-use crate::hwindow::{get_process_window, get_window_size};
+use crate::hwindow::get_window_size;
 use crate::icons::icon_manager::IconManager;
 use crate::settings::Settings;
 
@@ -130,7 +129,7 @@ impl ImguiRenderLoop for ItemWheel {
             tracing::info!("Initializing item wheel UI");
 
             tracing::info!("Setting HWND...");
-            HWND.set(unsafe { mem::transmute(get_process_window().expect("Could not find HWND")) }).expect("Count not set HWND");
+            set_hwnd();
             tracing::info!("Set HWND");
 
             tracing::info!("Loading font...");
@@ -175,6 +174,12 @@ impl ImguiRenderLoop for ItemWheel {
                 .no_inputs()
                 .movable(false)
                 .build(|| {
+                    if is_debugging() {
+                        tracing::info!("ImGui Display size: {:?}", ui.io().display_size);
+                        tracing::info!("ImGui window size: {:?}", ui.window_size());
+                        tracing::info!("Process window size: {:?}", get_window_size());
+                    }
+
                     if self.prev_spells != spells {
                         if is_debugging() {
                             tracing::info!("Remaking display spells");

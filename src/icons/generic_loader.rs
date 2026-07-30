@@ -176,7 +176,9 @@ fn parse_atlases(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_s
         atlases.insert(texture.name.clone(), atlas.clone());
 
         let force_rgba = Settings::read_or_default().force_rgba;
-        tracing::info!("Force RGBA? = {force_rgba}");
+        if is_debugging() {
+            tracing::info!("Force RGBA? = {force_rgba}");
+        }
 
         // Reads DDS compressed texture
         let dds_bytes = texture.bytes(&mut read_success.tpf_cursor).add_span()?;

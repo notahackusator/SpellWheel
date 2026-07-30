@@ -28,6 +28,7 @@ use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex,
 use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
+use hudhook::hooks::dx12::get_hwnd;
 use hudhook::windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 use lazy_static::lazy_static;
 use tracing_subscriber::fmt;
@@ -48,11 +49,17 @@ pub fn hmodule() -> usize {
     *HMODULE.get().expect("Could not get HMODULE")
 }
 
-static HWND: OnceLock<usize> = OnceLock::new();
+static HOOKED_HWND: OnceLock<usize> = OnceLock::new();
+
+pub fn set_hwnd() {
+    if let Err(hwnd) = HOOKED_HWND.set(*get_hwnd().expect("Couldn't find HWND")) {
+        tracing::error!("HWND already initialized: {hwnd}");
+    }
+}
 
 pub fn hwnd() -> windows::Win32::Foundation::HWND {
     unsafe {
-        mem::transmute(*HWND.get().expect("Could not get HWND"))
+        mem::transmute(*HOOKED_HWND.get().expect("Could not get HWND"))
     }
 }
 
@@ -273,8 +280,13 @@ fn tick(_fd4: &FD4TaskData) {
             (&mut equipped_spells, spell_data), (&mut equipped_quick_items, quick_item_data)
         ] {
             for (idx, id) in data {
-                if let Some(item) = Item::try_new(param_repo, idx as i32, id) {
-                    equipped.push(item);
+                match Item::try_new(param_repo, idx as i32, id) {
+                    Ok(item) => equipped.push(item),
+                    Err(err) => {
+                        run_every!(format!("I invalid item {id}"); every Duration::from_secs(1) => {
+                            tracing::warn!("Error creating item with ID {id}: {err}");
+                        });
+                    }
                 }
             }
         }

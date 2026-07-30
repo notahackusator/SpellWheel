@@ -168,6 +168,13 @@ impl InitState {
 }
 
 static INIT_STATE: InitState = InitState::new();
+static HOOKED_HWND: OnceLock<usize> = OnceLock::new();
+
+/// Retrieves the HWND value captured in init_pipeline
+pub fn get_hwnd() -> Option<&'static usize> {
+    HOOKED_HWND.get()
+}
+
 static mut PIPELINE: OnceCell<Mutex<Pipeline<D3D12RenderEngine>>> = OnceCell::new();
 static mut RENDER_LOOP: OnceCell<Box<dyn ImguiRenderLoop + Send + Sync>> = OnceCell::new();
 
@@ -178,6 +185,7 @@ unsafe fn init_pipeline() -> Result<Mutex<Pipeline<D3D12RenderEngine>>> {
     };
 
     let hwnd = unsafe { swap_chain.GetDesc() }?.OutputWindow;
+    HOOKED_HWND.set(unsafe { mem::transmute(hwnd) }).expect("Count not set HWND");
 
     let mut ctx = Context::create();
     let engine = D3D12RenderEngine::new(&command_queue, &mut ctx)?;
