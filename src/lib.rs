@@ -266,6 +266,7 @@ fn tick(_fd4: &FD4TaskData) {
             .iter()
             .map(|entry| entry.param_id as u32)
             .enumerate()
+            .filter(|(_idx, id)| *id != !0)
             .collect();
         let quick_item_data: Vec<_> = game_data_man.main_player_game_data
             .equipment
@@ -274,6 +275,7 @@ fn tick(_fd4: &FD4TaskData) {
             .iter()
             .enumerate()
             .filter_map(|(idx, entry)| entry.param_id().map(|param_id| (idx, param_id)))
+            .filter(|(_idx, id)| *id != !0)
             .collect();
 
         for (equipped, data) in [
@@ -283,8 +285,8 @@ fn tick(_fd4: &FD4TaskData) {
                 match Item::try_new(param_repo, idx as i32, id) {
                     Ok(item) => equipped.push(item),
                     Err(err) => {
-                        run_every!(format!("I invalid item {id}"); every Duration::from_secs(1) => {
-                            tracing::warn!("Error creating item with ID {id}: {err}");
+                        run_every!(format!("I invalid item {id} at index {idx}"); every Duration::from_secs(1) => {
+                            tracing::warn!("Error creating item with ID {id} at index {idx}: {err}");
                         });
                     }
                 }

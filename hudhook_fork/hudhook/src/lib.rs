@@ -121,7 +121,7 @@ pub use imgui;
 use imgui::{Context, Io, TextureId, Ui};
 use once_cell::sync::OnceCell;
 pub use tracing;
-use tracing::{error, trace, warn};
+use tracing::{error, info, trace, warn};
 pub use windows;
 use windows::core::Error;
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, WPARAM};
@@ -353,6 +353,7 @@ unsafe impl Sync for Hudhook {}
 impl Hudhook {
     /// Create a builder object.
     pub fn builder() -> HudhookBuilder {
+        info!("Building Hudhook");
         HudhookBuilder(Hudhook::new())
     }
 
@@ -377,6 +378,7 @@ impl Hudhook {
 
     /// Apply the hooks.
     pub fn apply(self) -> Result<(), MH_STATUS> {
+        info!("Applying hooks");
         // Queue enabling all the hooks.
         for hook in self.hooks() {
             unsafe { hook.queue_enable()? };
@@ -454,18 +456,21 @@ impl HudhookBuilder {
         mut self,
         render_loop: impl ImguiRenderLoop + Send + Sync + 'static,
     ) -> Self {
+        info!("Pushing render loop");
         self.0 .0.push(T::from_render_loop(render_loop));
         self
     }
 
     /// Save the DLL instance (for the [`eject`] method).
     pub fn with_hmodule(self, module: HINSTANCE) -> Self {
+        info!("Assigning HMODULE");
         unsafe { MODULE.set(module).unwrap() };
         self
     }
 
     /// Build the [`Hudhook`] object.
     pub fn build(self) -> Hudhook {
+        info!("Returning built Hudhook");
         self.0
     }
 }

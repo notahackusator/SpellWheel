@@ -302,16 +302,26 @@ fn get_target_addrs() -> (
     DXGISwapChainResizeBuffersType,
     D3D12CommandQueueExecuteCommandListsType,
 ) {
+    /*dbginfo*/ trace!("[gta] creating dummy hwnd");
     let dummy_hwnd = DummyHwnd::new();
+    /*dbginfo*/ trace!("[gta] dummy hwnd = {:?}", dummy_hwnd.hwnd());
 
+    /*dbginfo*/ trace!("[gta] CreateDXGIFactory2");
     let factory: IDXGIFactory2 =
         unsafe { CreateDXGIFactory2(DXGI_CREATE_FACTORY_FLAGS(0)) }.unwrap();
-    let adapter = unsafe { factory.EnumAdapters(0) }.unwrap();
+    /*dbginfo*/ trace!("[gta] factory ok");
 
+    /*dbginfo*/ trace!("[gta] EnumAdapters");
+    let adapter = unsafe { factory.EnumAdapters(0) }.unwrap();
+    /*dbginfo*/ trace!("[gta] adapter ok");
+
+    /*dbginfo*/ trace!("[gta] D3D12CreateDevice");
     let device: ID3D12Device =
         util::try_out_ptr(|v| unsafe { D3D12CreateDevice(&adapter, D3D_FEATURE_LEVEL_11_0, v) })
             .expect("D3D12CreateDevice failed");
+    /*dbginfo*/ trace!("[gta] device ok");
 
+    /*dbginfo*/ trace!("[gta] CreateCommandQueue");
     let command_queue: ID3D12CommandQueue = unsafe {
         device.CreateCommandQueue(&D3D12_COMMAND_QUEUE_DESC {
             Type: D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -321,7 +331,9 @@ fn get_target_addrs() -> (
         })
     }
     .unwrap();
+    /*dbginfo*/ trace!("[gta] command queue ok: {:p}", command_queue.as_raw());
 
+    /*dbginfo*/ trace!("[gta] CreateSwapChain");
     let swap_chain: IDXGISwapChain = match util::try_out_ptr(|v| unsafe {
         factory
             .CreateSwapChain(
@@ -353,13 +365,44 @@ fn get_target_addrs() -> (
             panic!("{e:?}");
         },
     };
+    /*dbginfo*/ trace!("[gta] swap chain ok: {:p}", swap_chain.as_raw());
 
+    /*dbginfo*/ trace!("[gta] reading vtables");
     let present_ptr: DXGISwapChainPresentType =
         unsafe { mem::transmute(swap_chain.vtable().Present) };
+    /*dbginfo*/ trace!("[gta] present_ptr OK: {present_ptr:p}");
     let resize_buffers_ptr: DXGISwapChainResizeBuffersType =
         unsafe { mem::transmute(swap_chain.vtable().ResizeBuffers) };
+    /*dbginfo*/ trace!("[gta] resize_buffers_ptr OK: {resize_buffers_ptr:p}");
     let cqecl_ptr: D3D12CommandQueueExecuteCommandListsType =
         unsafe { mem::transmute(command_queue.vtable().ExecuteCommandLists) };
+    /*dbginfo*/ trace!("[gta] cqecl_ptr OK: {cqecl_ptr:p}");
+    /*dbginfo*/ trace!("[gta] all vtables OK");
+
+    /*dbginfo*/ trace!("[gta] FROGETTING swap_chain");
+    // intentional memory leak to fix crash when paired with QuestPath.
+    mem::forget(swap_chain);
+    /*dbginfo*/ trace!("[gta] swap_chain FROGOR OK");
+
+    /*dbginfo*/ trace!("[gta] dropping command_queue");
+    drop(command_queue);
+    /*dbginfo*/ trace!("[gta] command_queue dropped OK");
+
+    /*dbginfo*/ trace!("[gta] dropping device");
+    drop(device);
+    /*dbginfo*/ trace!("[gta] device dropped OK");
+
+    /*dbginfo*/ trace!("[gta] dropping adapter");
+    drop(adapter);
+    /*dbginfo*/ trace!("[gta] adapter dropped OK");
+
+    /*dbginfo*/ trace!("[gta] dropping factory");
+    drop(factory);
+    /*dbginfo*/ trace!("[gta] factory dropped OK");
+
+    /*dbginfo*/ trace!("[gta] dropping dummy_hwnd");
+    drop(dummy_hwnd);
+    /*dbginfo*/ trace!("[gta] dummy_hwnd dropped OK");
 
     (present_ptr, resize_buffers_ptr, cqecl_ptr)
 }
@@ -383,31 +426,44 @@ impl ImguiDx12Hooks {
     where
         T: ImguiRenderLoop + Send + Sync + 'static,
     {
+        /*dbginfo*/ trace!("  Getting target addrs");
         let (
             dxgi_swap_chain_present_addr,
             dxgi_swap_chain_resize_buffers_addr,
             d3d12_command_queue_execute_command_lists_addr,
         ) = get_target_addrs();
 
-        trace!("IDXGISwapChain::Present = {:p}", dxgi_swap_chain_present_addr as *const c_void);
+        /*dbginfo*/ trace!("  got target addrs: present={:p} resize={:p} execl={:p}",
+            dxgi_swap_chain_present_addr as *const c_void,
+            dxgi_swap_chain_resize_buffers_addr as *const c_void,
+            d3d12_command_queue_execute_command_lists_addr as *const c_void);
         let hook_present = MhHook::new(
             dxgi_swap_chain_present_addr as *mut _,
             dxgi_swap_chain_present_impl as *mut _,
         )
         .expect("couldn't create IDXGISwapChain::Present hook");
+
+        /*dbginfo*/ trace!("  Creating hook resize buffers");
         let hook_resize_buffers = MhHook::new(
             dxgi_swap_chain_resize_buffers_addr as *mut _,
             dxgi_swap_chain_resize_buffers_impl as *mut _,
         )
         .expect("couldn't create IDXGISwapChain::ResizeBuffers hook");
+        /*dbginfo*/ trace!("  Hook resize buffers created");
+
+        /*dbginfo*/ trace!("  Creating hook cqecl");
         let hook_cqecl = MhHook::new(
             d3d12_command_queue_execute_command_lists_addr as *mut _,
             d3d12_command_queue_execute_command_lists_impl as *mut _,
         )
         .expect("couldn't create ID3D12CommandQueue::ExecuteCommandLists hook");
+        /*dbginfo*/ trace!("  Hook cqecl created");
 
+        /*dbginfo*/ trace!("  Initializing RENDER_LOOP");
         RENDER_LOOP.get_or_init(|| Box::new(t));
+        /*dbginfo*/ trace!("  RENDER_LOOP Initialized");
 
+        /*dbginfo*/ trace!("  Initializing TRAMPOLINES");
         TRAMPOLINES.get_or_init(|| Trampolines {
             dxgi_swap_chain_present: mem::transmute::<*mut c_void, DXGISwapChainPresentType>(
                 hook_present.trampoline(),
@@ -421,6 +477,7 @@ impl ImguiDx12Hooks {
                 D3D12CommandQueueExecuteCommandListsType,
             >(hook_cqecl.trampoline()),
         });
+        /*dbginfo*/ trace!("  TRAMPOLINES Initialized");
 
         Self([hook_present, hook_resize_buffers, hook_cqecl])
     }

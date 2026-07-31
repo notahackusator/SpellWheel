@@ -31,6 +31,7 @@ pub fn try_init_rendering() {
         tracing::error!("Couldn't apply hooks: {e:?}");
         hudhook::eject();
     }
+    tracing::info!("Init rendering complete");
 }
 
 pub fn remove_hudhook() {
