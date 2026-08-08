@@ -16,7 +16,10 @@ quick_items_button = "DOWN"
 # Decides whether to use controller or mouse and keyboard. true for controller, false for mouse & keyboard. Default is false.
 using_controller = false
 
-# How is many seconds needed to press DPad Up in order to open the spell wheel on controller. Default is 0.5.
+# Centers the cursor after selecting an item / spell if you're using keyboard and mouse
+center_on_close = true
+
+# How is many seconds needed to press the button in order to open the wheel on controller. Default is 0.5.
 controller_wheel_open_delay = 0.5
 
 # Whether to switch instantly to the selected spell or wait until the wheel is closed. Default is true.

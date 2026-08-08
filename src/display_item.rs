@@ -289,7 +289,7 @@ impl DisplayItem {
 
             let radius = settings.radius_multiplier * ww.min(wh) - img_dim;
 
-            let angle_offset = std::f32::consts::PI / num_items as f32 - (thickness / radius).atan();
+            let angle_offset = std::f32::consts::PI / num_items.max(2) as f32 - (thickness / radius).atan();
             if is_debugging() {
                 add_to_screen_debug(format!("{angle_offset} {thickness} {radius} {}", (thickness / radius).atan()));
             }
@@ -307,7 +307,7 @@ impl DisplayItem {
             ).filled(true).rounding(10.0).build();
 
             if let ItemNames::Center = settings.item_names() {
-                self.name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), true, settings.text_shadows);
+                self.name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), Centered::XY, settings.text_shadows);
             }
         }
         match self.icon {
@@ -330,7 +330,7 @@ impl DisplayItem {
             ).build()
         }
         if let ItemNames::Show = settings.item_names() {
-            self.name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), true, settings.text_shadows);
+            self.name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), Centered::X, settings.text_shadows);
         }
     }
 
@@ -344,6 +344,24 @@ impl DisplayItem {
             );
             pos[1] += ui.text_line_height();
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Centered {
+    XY,
+    X,
+    Y,
+    None,
+}
+
+impl Centered {
+    pub fn x(&self) -> bool {
+        matches!(self, Self::X | Self::XY)
+    }
+
+    pub fn y(&self) -> bool {
+        matches!(self, Self::Y | Self::XY)
     }
 }
 
@@ -395,14 +413,18 @@ impl WrappedText {
         }
     }
 
-    pub fn add_to_draw_list(&self, draw_list: &DrawListMut, pos: [f32; 2], color: [f32; 4], centered: bool, shadow: bool) {
+    pub fn add_to_draw_list(&self, draw_list: &DrawListMut, pos: [f32; 2], color: [f32; 4], centered: Centered, shadow: bool) {
         for (i, (line, width)) in self.lines.iter().zip(self.widths.iter()).enumerate() {
-            let x = if centered {
+            let x = if centered.x() {
                 pos[0] - width / 2.0
             } else {
                 pos[0]
             };
-            let y = pos[1] + i as f32 * self.line_height;
+            let y = if centered.y() {
+                pos[1] + i as f32 * self.line_height - (self.lines.len() as f32 / 2.0) * self.line_height
+            } else {
+                pos[1] + i as f32 * self.line_height
+            };
 
             if shadow {
                 const SHADOW_DELTAS: [[f32; 2]; 4] = [

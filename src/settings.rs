@@ -67,6 +67,7 @@ settings!(
     quick_items_button: String,
     using_controller: bool,
     controller_wheel_open_delay: f32,
+    center_on_close: bool,
     switch_instantly: bool,
     item_names: String,
     text_shadows: bool,
@@ -100,6 +101,10 @@ pub fn quick_items_button() -> String {
 
 pub const fn using_controller() -> bool {
     false
+}
+
+pub const fn center_on_close() -> bool {
+    true
 }
 
 pub const fn controller_wheel_open_delay() -> f32 {

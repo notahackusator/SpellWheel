@@ -11,6 +11,7 @@ use crate::font::FontId;
 use crate::glyphs::font_manager::FontManager;
 use crate::hwindow::get_window_size;
 use crate::icons::icon_manager::IconManager;
+use crate::mouse::reset_cursor_pos;
 use crate::settings::Settings;
 
 static mut INIT: bool = false;
@@ -154,7 +155,15 @@ impl ImguiRenderLoop for ItemWheel {
                 (data.wheel_type, data.quick_items.clone(), data.spells.clone())
             );
 
-            let switch_items = Settings::read_or_default().switch_instantly || (self.prev_type != wheel_type);
+            let settings = Settings::read_or_default();
+
+            if (self.prev_type != WheelType::None) && (wheel_type == WheelType::None) {
+                if !settings.using_controller && settings.center_on_close {
+                    reset_cursor_pos();
+                }
+            }
+
+            let switch_items = settings.switch_instantly || (self.prev_type != wheel_type);
             if switch_items {
                 self.switch_item();
             }
