@@ -1,6 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 mod rendering;
+#[cfg(feature = "extra-memory-slots-support")]
 mod expanded_memory_slots;
 mod debugging;
 mod keyboard;
@@ -40,6 +41,7 @@ use crate::icons::icon_manager::IconManager;
 use io::selected_wheel_type;
 use crate::glyphs::font_manager::FontManager;
 use crate::rendering::{try_init_rendering, remove_hudhook, ItemWheelData, WheelType};
+#[cfg(feature = "extra-memory-slots-support")]
 use crate::expanded_memory_slots::SelectionResult;
 use crate::settings::Settings;
 use crate::items::Item;
@@ -241,7 +243,8 @@ fn tick(_fd4: &FD4TaskData) {
                 tracing::info!("Passed all checks");
             });
         }
-        if Settings::read_or_default().await_xinput_hook {
+        let settings = Settings::read_or_default();
+        if settings.await_xinput_hook {
             install_xinput_hook();
         }
         update_gamepad_state();
@@ -253,6 +256,7 @@ fn tick(_fd4: &FD4TaskData) {
                 .main_player_game_data
                 .equipment
                 .equip_magic_data;
+            #[cfg(feature = "extra-memory-slots-support")]
             match expanded_memory_slots::select_spell(
                 equip_magic_data.as_ptr().cast(),
                 selected_spell_index,
@@ -267,6 +271,10 @@ fn tick(_fd4: &FD4TaskData) {
                     );
                 }
             }
+            #[cfg(not(feature = "extra-memory-slots-support"))]
+            {
+                equip_magic_data.selected_slot = selected_spell_index;
+            }
             SELECTED_SPELL_INDEX.store(-1, Ordering::Relaxed);
         }
         let selected_quick_item_index = SELECTED_QUICK_ITEM_INDEX.load(Ordering::Relaxed);
@@ -275,26 +283,34 @@ fn tick(_fd4: &FD4TaskData) {
             SELECTED_QUICK_ITEM_INDEX.store(-1, Ordering::Relaxed);
         }
 
-        let mut equipped_spells = Vec::with_capacity(
-            expanded_memory_slots::MAX_SPELL_RECORDS
-        );
+        #[cfg(feature = "extra-memory-slots-support")]
+        let mut equipped_spells = Vec::with_capacity(expanded_memory_slots::MAX_SPELL_RECORDS);
+        #[cfg(not(feature = "extra-memory-slots-support"))]
+        let mut equipped_spells = Vec::with_capacity(14);
         let mut equipped_quick_items = Vec::with_capacity(10);
 
         let equip_magic_data = &game_data_man
             .main_player_game_data
             .equipment
             .equip_magic_data;
-        let spell_data: Vec<_> = expanded_memory_slots::spell_ids(
-            equip_magic_data.as_ptr().cast()
-        ).unwrap_or_else(|| {
-            equip_magic_data
+        #[cfg(feature = "extra-memory-slots-support")]
+        let spell_data = expanded_memory_slots::spell_ids(equip_magic_data.as_ptr().cast())
+            .unwrap_or_else(|| equip_magic_data
                 .entries
                 .iter()
                 .map(|entry| entry.param_id as u32)
                 .enumerate()
                 .filter(|(_idx, id)| *id != !0)
                 .collect()
-        });
+            );
+        #[cfg(not(feature = "extra-memory-slots-support"))]
+        let spell_data = equip_magic_data
+                .entries
+                .iter()
+                .map(|entry| entry.param_id as u32)
+                .enumerate()
+                .filter(|(_idx, id)| *id != !0)
+                .collect();
         let quick_item_data: Vec<_> = game_data_man.main_player_game_data
             .equipment
             .equipment_entries

@@ -40,11 +40,10 @@ fn api() -> Option<&'static Api> {
     }
 
     let module = unsafe { GetModuleHandleW(w!("ExpandedMemorySlots.dll")) }.ok()?;
-    let query_spell_layout =
-        unsafe { GetProcAddress(module, s!("ExpandedMemorySlots_QuerySpellLayout")) }?;
-    let copy_spell_ids = unsafe { GetProcAddress(module, s!("ExpandedMemorySlots_CopySpellIds")) }?;
-    let set_selected_spell_index =
-        unsafe { GetProcAddress(module, s!("ExpandedMemorySlots_SetSelectedSpellIndex")) }?;
+
+    let query_spell_layout = unsafe { GetProcAddress(module, s!("ExpandedMemorySlots_QuerySpellLayout")) }? as usize;
+    let copy_spell_ids = unsafe { GetProcAddress(module, s!("ExpandedMemorySlots_CopySpellIds")) }? as usize;
+    let set_selected_spell_index = unsafe { GetProcAddress(module, s!("ExpandedMemorySlots_SetSelectedSpellIndex")) }? as usize;
 
     let discovered = Api {
         query_spell_layout: unsafe { transmute(query_spell_layout) },
