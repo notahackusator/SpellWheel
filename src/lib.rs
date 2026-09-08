@@ -355,7 +355,7 @@ fn tick(_fd4: &FD4TaskData) {
             *PREV_WHEEL_TYPE.lock().unwrap() = selected_wheel_type;
             let is_wheel_open = selected_wheel_type != WheelType::None;
             menu_man.disable_mouse_cursor = !is_wheel_open;
-            set_suppress_camera(is_wheel_open);
+            set_suppress_camera(is_wheel_open && settings.suppress_camera_while_wheel_open);
         }
         ItemWheelData::mutate(|data| {
             data.wheel_type = selected_wheel_type;
