@@ -81,6 +81,7 @@ settings!(
     debugging: bool,
     timing_offset: f32,
     force_rgba: bool,
+    suppress_camera_while_wheel_open: bool,
 );
 
 pub fn spells_key() -> String {
@@ -161,6 +162,10 @@ pub const fn timing_offset() -> f32 {
 
 pub const fn force_rgba() -> bool {
     false
+}
+
+pub const fn suppress_camera_while_wheel_open() -> bool {
+    true
 }
 
 #[derive(Clone, Copy, Debug)]

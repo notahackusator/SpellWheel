@@ -58,5 +58,12 @@ mods = []
 # Waits before hooking into controller inputs.
 await_xinput_hook = false
 
+# While the wheel is open, zeroes the right stick passed to the game so that the camera doesn't rotate
+# while selecting a spell/item. Disable this if using Nucleus Co-op or any other software that hijacks
+# XInput input (it conflicts with their input redirection, causing the wheel to not read the right stick).
+# When disabled, the camera will rotate while the wheel is open; you can pre-tilt the stick before
+# opening the wheel to select a slot. Default is true.
+suppress_camera_while_wheel_open = true
+
 # Forces RGBA encoding. Increases VRAM usage, but may fix rendering bugs. Default is false.
 force_rgba = false
