@@ -1,17 +1,17 @@
+use crate::debugging::{add_to_screen_debug, is_debugging, run_every};
+use crate::gamepad::{BUTTONS, gamepad_state};
+use crate::keyboard::KEYS;
+use crate::rendering::wheel_renderer::WheelType;
+use crate::settings::Settings;
+use crate::{in_menus, keyboard};
+use eldenring::util::input::is_key_pressed;
+use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
+use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{VK_CAPITAL, VK_TAB};
+use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+use lazy_static::lazy_static;
 use std::sync::Mutex;
 use std::time::Duration;
-use eldenring::util::input::is_key_pressed;
 use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_UP};
-use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{VK_CAPITAL, VK_TAB};
-use lazy_static::lazy_static;
-use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
-use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
-use crate::debugging::{add_to_screen_debug, is_debugging, run_every};
-use crate::{in_menus, keyboard};
-use crate::gamepad::{gamepad_state, BUTTONS};
-use crate::keyboard::KEYS;
-use crate::rendering::WheelType;
-use crate::settings::Settings;
 
 lazy_static!(
 	static ref PREV_BUTTON_SPELLS: Mutex<Option<String>> = Mutex::new(None);

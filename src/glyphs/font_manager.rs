@@ -66,6 +66,11 @@ impl FontManager {
                 tracing::error!("Error while loading vanilla MSG chars for {msg_folder}: {err}");
                 continue;
             }
+            if let Some(upstream_mod_folder) = modded_reader::search_for_mod_folder(msg_folder) {
+                if let Err(err) = modded_reader::read(upstream_mod_folder, msg_folder, &mut msg_chars) {
+                    tracing::error!("Error while loading upstream modded MSG chars for {msg_folder}: {err}");
+                }
+            }
             for modded_msg_path in Settings::read_or_default().mods() {
                 if let Err(err) = modded_reader::read(modded_msg_path, msg_folder, &mut msg_chars) {
                     tracing::error!("Error while loading modded ({modded_msg_path}) MSG chars for {msg_folder}: {err}");

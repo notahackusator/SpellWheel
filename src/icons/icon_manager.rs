@@ -3,6 +3,9 @@ use std::mem::take;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Instant;
 use hudhook::RenderContext;
+use hudhook::windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_R8G8B8A8_UNORM;
+use image::EncodableLayout;
+use imgui::TextureId;
 use lazy_static::lazy_static;
 use crate::dynamic_icons::modded_reader;
 use crate::icons::{modded_loader, vanilla_loader, AtlasIcon};
@@ -16,17 +19,24 @@ lazy_static!(
 
 pub struct IconManager {
     await_graphics: Vec<AwaitGraphics>,
+    item_bg: TextureId,
     icons: HashMap<u16, AtlasIcon>,
 }
 
 impl IconManager {
-    pub fn get(item: &Item) -> Option<AtlasIcon> {
+    pub fn get_item_bg() -> Option<TextureId> {
         ICON_MANAGER.get()
             .and_then(|manager| manager.read().ok())
-            .and_then(|manager| manager.get_inner(item))
+            .map(|manager| manager.item_bg)
+    }
+
+    pub fn get_item(item: &Item) -> Option<AtlasIcon> {
+        ICON_MANAGER.get()
+            .and_then(|manager| manager.read().ok())
+            .and_then(|manager| manager.get_item_inner(item))
     }
     
-    fn get_inner(&self, item: &Item) -> Option<AtlasIcon> {
+    fn get_item_inner(&self, item: &Item) -> Option<AtlasIcon> {
         self.icons.get(&item.icon_id()).cloned()
     }
 
@@ -69,6 +79,7 @@ impl IconManager {
 
         Self {
             await_graphics,
+            item_bg: TextureId::new(0),
             icons: Default::default(),
         }
     }
@@ -92,7 +103,19 @@ impl IconManager {
                 tracing::error!("Error loading icons: {err}");
             }
         }
+        if let Err(err) = self.load_item_bg(render_context) {
+            tracing::error!("Error loading item background: {err}");
+        }
         let time = start.elapsed();
         tracing::info!("Finished loading icon graphics in {time:?}");
+    }
+
+    fn load_item_bg(&mut self, render_context: &mut dyn RenderContext) -> anyhow::Result<()> {
+        let item_bg = image::load_from_memory(include_bytes!("../../assets/item_bg.png"))?
+            .to_rgba8();
+        self.item_bg = render_context.load_texture(
+            DXGI_FORMAT_R8G8B8A8_UNORM, item_bg.as_bytes(), item_bg.width(), item_bg.height()
+        )?;
+        Ok(())
     }
 }

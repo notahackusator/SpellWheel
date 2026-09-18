@@ -16,6 +16,9 @@ quick_items_button = "DOWN"
 # Decides whether to use controller or mouse and keyboard. true for controller, false for mouse & keyboard. Default is false.
 using_controller = false
 
+# The style of the spell / item wheel. Use "pretty" or "simple". Default is "pretty"
+style = "pretty"
+
 # Centers the cursor after selecting an item / spell if you're using keyboard and mouse
 center_on_close = true
 

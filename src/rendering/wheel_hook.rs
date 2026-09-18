@@ -1,78 +1,17 @@
-use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
-use imgui::{Context, Ui, WindowFlags};
-use lazy_static::lazy_static;
-use std::sync::{Arc, RwLock};
-use hudhook::hooks::dx12::ImguiDx12Hooks;
-use hudhook::windows::Win32::Foundation::HINSTANCE;
-use crate::{guard, hmodule, set_selected_quick_item_index, set_selected_spell_index, Item, set_hwnd};
 use crate::debugging::{add_to_screen_debug, is_debugging};
-use crate::display_item::DisplayItem;
 use crate::font::FontId;
 use crate::glyphs::font_manager::FontManager;
 use crate::hwindow::get_window_size;
 use crate::icons::icon_manager::IconManager;
+use crate::items::Item;
 use crate::mouse::reset_cursor_pos;
+use crate::rendering::ITEM_WHEEL_DATA;
+use crate::rendering::display_item::DisplayItem;
+use crate::rendering::wheel_renderer::{WheelType, render_wheel};
 use crate::settings::Settings;
-
-static mut INIT: bool = false;
-pub fn try_init_rendering() {
-    unsafe {
-        if INIT {
-            return;
-        }
-        INIT = true;
-    }
-    tracing::info!("Init rendering called");
-    if let Err(e) = Hudhook::builder()
-        .with::<ImguiDx12Hooks>(ItemWheel::new())
-        .with_hmodule(HINSTANCE(hmodule() as _))
-        .build()
-        .apply()
-    {
-        tracing::error!("Couldn't apply hooks: {e:?}");
-        hudhook::eject();
-    }
-    tracing::info!("Init rendering complete");
-}
-
-pub fn remove_hudhook() {
-    hudhook::eject();
-}
-
-lazy_static!(
-    static ref ITEM_WHEEL_DATA: Arc<RwLock<ItemWheelData >> = Arc::new(RwLock::new(ItemWheelData::new()));
-);
-
-pub struct ItemWheelData {
-    pub spells: Vec<Item>,
-    pub quick_items: Vec<Item>,
-    pub wheel_type: WheelType,
-}
-
-impl ItemWheelData {
-    fn new() -> Self {
-        Self {
-            spells: vec![],
-            quick_items: vec![],
-            wheel_type: WheelType::None,
-        }
-    }
-
-    pub fn mutate<F: FnOnce(&mut Self)>(f: F) {
-        f(&mut ITEM_WHEEL_DATA.write().unwrap())
-    }
-
-    pub fn get<F: FnOnce(&Self) -> T, T>(f: F) -> T {
-        f(&ITEM_WHEEL_DATA.read().unwrap())
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum WheelType {
-    Spells,
-    QuickItems,
-    None
-}
+use crate::{guard, set_hwnd, set_selected_quick_item_index, set_selected_spell_index};
+use hudhook::{ImguiRenderLoop, RenderContext};
+use imgui::{Context, Ui, WindowFlags};
 
 pub struct ItemWheel {
     font: FontId,
@@ -84,7 +23,7 @@ pub struct ItemWheel {
 }
 
 impl ItemWheel {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             font: FontId::none(),
             display_spells: vec![],
@@ -115,8 +54,6 @@ impl ItemWheel {
         }
     }
 }
-
-const DEFAULT_SCREEN_MIN: f32 = 2160.0;
 
 impl ItemWheel {
     fn try_resize_font(&mut self, ctx: &mut Context) {
@@ -224,11 +161,37 @@ impl ImguiRenderLoop for ItemWheel {
                     self.prev_quick_items = quick_items;
 
                     let draw_list = ui.get_window_draw_list();
-                    DisplayItem::draw_all(display_items, ui, &draw_list);
+                    render_wheel(display_items, ui, &draw_list);
                 });
 
             self.prev_type = wheel_type;
             font.pop();
         );
+    }
+}
+
+const DEFAULT_SCREEN_MIN: f32 = 2160.0;
+
+pub struct ItemWheelData {
+    pub spells: Vec<Item>,
+    pub quick_items: Vec<Item>,
+    pub wheel_type: WheelType,
+}
+
+impl ItemWheelData {
+    pub fn new() -> Self {
+        Self {
+            spells: vec![],
+            quick_items: vec![],
+            wheel_type: WheelType::None,
+        }
+    }
+
+    pub fn mutate<F: FnOnce(&mut Self)>(f: F) {
+        f(&mut ITEM_WHEEL_DATA.write().unwrap())
+    }
+
+    pub fn get<F: FnOnce(&Self) -> T, T>(f: F) -> T {
+        f(&ITEM_WHEEL_DATA.read().unwrap())
     }
 }

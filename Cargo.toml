@@ -1,6 +1,6 @@
 [package]
 name = "spellwheel"
-version = "1.5.10-patch1"
+version = "1.5.11"
 edition = "2024"
 
 [lib]

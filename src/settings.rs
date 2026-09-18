@@ -66,6 +66,7 @@ settings!(
     spells_button: String,
     quick_items_button: String,
     using_controller: bool,
+    style: String,
     controller_wheel_open_delay: f32,
     center_on_close: bool,
     switch_instantly: bool,
@@ -105,6 +106,10 @@ pub const fn using_controller() -> bool {
 
 pub const fn center_on_close() -> bool {
     true
+}
+
+pub fn style() -> String {
+    "pretty".to_string()
 }
 
 pub const fn controller_wheel_open_delay() -> f32 {
@@ -181,6 +186,22 @@ impl<S: AsRef<str>> From<S> for ItemNames {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Style {
+    Simple,
+    Pretty
+}
+
+impl<S: AsRef<str>> From<S> for Style {
+    fn from(value: S) -> Self {
+        match value.as_ref().to_lowercase().as_str() {
+            "simple" => Self::Simple,
+            "pretty" => Self::Pretty,
+            _ => Self::Pretty,
+        }
+    }
+}
+
 lazy_static!(
     static ref SETTINGS_CACHE: Arc<RwLock<Settings>> = Arc::new(RwLock::new(Settings::default()));
 );
@@ -229,5 +250,9 @@ impl Settings {
 
     pub fn item_names(&self) -> ItemNames {
         self.item_names.as_str().into()
+    }
+
+    pub fn style(&self) -> Style {
+        self.style.as_str().into()
     }
 }

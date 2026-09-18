@@ -1,8 +1,19 @@
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use crate::glyphs::generic_reader;
+use crate::paths;
+
+pub fn search_for_mod_folder<L: AsRef<Path>>(lang: L) -> Option<PathBuf> {
+    let mut path = paths::dll();
+    while path.pop() {
+        if path.join(format!("mod/{L}")).exists() {
+            return Some(path);
+        }
+    }
+    None
+}
 
 pub fn read<P: AsRef<Path>, L: AsRef<Path> + Display>(p: P, lang: L, out: &mut HashSet<char>) -> anyhow::Result<()> {
     let bytes = [
