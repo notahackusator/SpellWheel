@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 use crate::glyphs::generic_reader;
 use crate::paths;
 
-pub fn search_for_mod_folder<L: AsRef<Path>>(lang: L) -> Option<PathBuf> {
+pub fn search_for_mod_folder<L: AsRef<Path> + Display>(lang: L) -> Option<PathBuf> {
     let mut path = paths::dll();
     while path.pop() {
-        if path.join(format!("mod/{L}")).exists() {
+        if path.join(format!("mod/{lang}")).exists() {
             return Some(path);
         }
     }

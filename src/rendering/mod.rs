@@ -1,22 +1,11 @@
-use crate::debugging::{add_to_screen_debug, is_debugging};
-use crate::font::FontId;
-use crate::glyphs::font_manager::FontManager;
-use crate::hwindow::get_window_size;
-use crate::icons::icon_manager::IconManager;
-use crate::mouse::reset_cursor_pos;
 use crate::rendering::wheel_hook::ItemWheelData;
-use crate::rendering::wheel_renderer::render_wheel;
-use crate::settings::Settings;
-use crate::{Item, guard, hmodule, set_hwnd, set_selected_quick_item_index, set_selected_spell_index};
-use display_item::DisplayItem;
+use crate::hmodule;
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
-use hudhook::{Hudhook, ImguiRenderLoop, RenderContext};
-use imgui::{Context, Ui, WindowFlags};
+use hudhook::Hudhook;
 use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 use wheel_hook::ItemWheel;
-use wheel_renderer::WheelType;
 
 pub mod display_item;
 pub mod wheel_renderer;

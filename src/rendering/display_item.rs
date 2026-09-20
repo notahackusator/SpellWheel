@@ -1,7 +1,7 @@
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::hwindow::get_window_size;
-use crate::icons::AtlasIcon;
 use crate::icons::icon_manager::IconManager;
+use crate::icons::AtlasIcon;
 use crate::items::Item;
 use crate::rendering::wheel_renderer::arc_bezier;
 use crate::rendering::wrapped_text::{Centered, WrappedText};
@@ -150,14 +150,18 @@ impl DisplayItem {
             draw_list.add_bezier_curve(bezier[0], bezier[1], bezier[2], bezier[3], [1.0; 4]).thickness(thickness).build();
         }
         if let Style::Pretty = settings.style() {
-            if let Some(item_bg) = IconManager::get_item_bg() {
-                draw_list.add_image(
-                    item_bg,
-                    self.img_c1,
-                    self.img_c2,
-                )
-                    .col(0xFE_FF_FF_FF)
-                    .build();
+            match (&self.icon, IconManager::get_item_bg()) {
+                (Some(AtlasIcon { primary_color, .. }), Some(item_bg)) => {
+                    let col = u32::from_be_bytes([0xFE, primary_color[2], primary_color[1], primary_color[0]]);
+                    draw_list.add_image(
+                        item_bg,
+                        self.img_c1,
+                        self.img_c2,
+                    )
+                        .col(col)
+                        .build();
+                }
+                _ => {}
             }
         }
         if self.is_highlighted {

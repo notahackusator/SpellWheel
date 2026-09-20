@@ -7,6 +7,7 @@ mod generic_loader;
 pub mod vanilla_loader;
 #[cfg(feature = "atlas-dump")]
 pub mod atlas_dump;
+pub mod primary_color;
 
 use crate::icons::atlas::Atlas;
 use crate::util::AddSpan;
@@ -21,6 +22,7 @@ pub struct AtlasIcon {
     pub atlas_name: Arc<str>,
     pub texture_id: TextureId,
     pub rect: [f32; 4],
+    pub primary_color: [u8; 3],
     #[cfg(feature = "atlas-dump")]
     pub original_rect: [f32; 4],
 }
@@ -54,6 +56,8 @@ impl AtlasIcon {
     pub fn from_geometry(atlas: Atlas, rect: [f32; 4]) -> anyhow::Result<Self> {
         let atlas_texture = atlas.atlas_texture
             .ok_or(Error::new(ErrorKind::NotFound, "Expected atlas texture to be initialized"))?;
+        let primary_color = atlas.get_primary_color(rect[0] as u32, rect[1] as u32, rect[2] as u32, rect[3] as u32)
+            .unwrap_or([255; 3]);
         Ok(AtlasIcon {
             atlas_source: atlas.source,
             atlas_name: atlas.name,
@@ -64,6 +68,7 @@ impl AtlasIcon {
                 rect[2] / atlas_texture.width as f32,
                 rect[3] / atlas_texture.height as f32,
             ],
+            primary_color,
             #[cfg(feature = "atlas-dump")]
             original_rect: [
                 rect[0],

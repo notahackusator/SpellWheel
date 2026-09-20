@@ -11,6 +11,7 @@ use crate::dynamic_icons::read_success::ReadSuccess;
 use crate::icons::atlas::Atlas;
 use crate::icons::AtlasIcon;
 use crate::icons::await_graphics::AwaitGraphics;
+use crate::icons::primary_color::PrimaryColors;
 use crate::icons::vanilla_loader::BASE_GAME_SOURCE;
 use crate::settings::Settings;
 use crate::util::AddSpan;
@@ -172,8 +173,6 @@ fn parse_atlases(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_s
         if is_debugging() {
             tracing::info!("Parsing atlas {}. Debug data: {texture:?}", texture.name);
         }
-        let atlas = Arc::new(Mutex::new(Atlas::new(texture.name.clone(), source.clone())));
-        atlases.insert(texture.name.clone(), atlas.clone());
 
         let force_rgba = Settings::read_or_default().force_rgba;
         if is_debugging() {
@@ -183,6 +182,8 @@ fn parse_atlases(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_s
         // Reads DDS compressed texture
         let dds_bytes = texture.bytes(&mut read_success.tpf_cursor).add_span()?;
         let dds = Dds::read(dds_bytes.as_slice()).add_span()?;
+        let atlas = Arc::new(Mutex::new(Atlas::new(texture.name.clone(), source.clone(), &dds)));
+        atlases.insert(texture.name.clone(), atlas.clone());
         #[cfg(feature = "atlas-dump")]
         crate::icons::atlas_dump::dump_dds(&atlas.lock().unwrap().name, &dds);
 
