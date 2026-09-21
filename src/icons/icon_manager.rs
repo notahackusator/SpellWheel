@@ -17,17 +17,32 @@ lazy_static!(
     static ref ICON_MANAGER: OnceLock<Arc<RwLock<IconManager>>> = OnceLock::new();
 );
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct StaticIcons {
+    pub item_bg: TextureId,
+    pub selected_item_bg: TextureId,
+}
+
+impl StaticIcons {
+    pub const fn new() -> Self {
+        Self {
+            item_bg: TextureId::new(0),
+            selected_item_bg: TextureId::new(0),
+        }
+    }
+}
+
 pub struct IconManager {
     await_graphics: Vec<AwaitGraphics>,
-    item_bg: TextureId,
+    static_icons: StaticIcons,
     icons: HashMap<u16, AtlasIcon>,
 }
 
 impl IconManager {
-    pub fn get_item_bg() -> Option<TextureId> {
+    pub fn get_static_icons() -> Option<StaticIcons> {
         ICON_MANAGER.get()
             .and_then(|manager| manager.read().ok())
-            .map(|manager| manager.item_bg)
+            .map(|manager| manager.static_icons)
     }
 
     pub fn get_item(item: &Item) -> Option<AtlasIcon> {
@@ -79,7 +94,7 @@ impl IconManager {
 
         Self {
             await_graphics,
-            item_bg: TextureId::new(0),
+            static_icons: StaticIcons::new(),
             icons: Default::default(),
         }
     }
@@ -103,19 +118,26 @@ impl IconManager {
                 tracing::error!("Error loading icons: {err}");
             }
         }
-        if let Err(err) = self.load_item_bg(render_context) {
+        if let Err(err) = self.load_static_icons(render_context) {
             tracing::error!("Error loading item background: {err}");
         }
         let time = start.elapsed();
         tracing::info!("Finished loading icon graphics in {time:?}");
     }
 
-    fn load_item_bg(&mut self, render_context: &mut dyn RenderContext) -> anyhow::Result<()> {
+    fn load_static_icons(&mut self, render_context: &mut dyn RenderContext) -> anyhow::Result<()> {
         let item_bg = image::load_from_memory(include_bytes!("../../assets/item_bg.png"))?
             .to_rgba8();
-        self.item_bg = render_context.load_texture(
+        self.static_icons.item_bg = render_context.load_texture(
             DXGI_FORMAT_R8G8B8A8_UNORM, item_bg.as_bytes(), item_bg.width(), item_bg.height()
         )?;
+
+        let selected_item_bg = image::load_from_memory(include_bytes!("../../assets/selected_item_bg.png"))?
+            .to_rgba8();
+        self.static_icons.selected_item_bg = render_context.load_texture(
+            DXGI_FORMAT_R8G8B8A8_UNORM, selected_item_bg.as_bytes(), selected_item_bg.width(), selected_item_bg.height()
+        )?;
+
         Ok(())
     }
 }

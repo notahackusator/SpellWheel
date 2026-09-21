@@ -20,20 +20,31 @@ pub fn bucket_key(rgb: Rgb8) -> (u8, u8, u8) {
     (rgb[0] >> 4, rgb[1] >> 4, rgb[2] >> 4)
 }
 
-pub fn spread_to_confidence(spread: i32) -> f32 {
-    1.0 - (spread.clamp(0, 765) as f32 / 765.0)
+pub type Rgb8 = [u8; 3];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AverageColor {
+    pub rgb: Rgb8,
+    pub confidence: u8,
 }
 
-pub type Rgb8 = [u8; 3];
+impl AverageColor {
+    pub const fn new(rgb: Rgb8, confidence: u8) -> Self {
+        Self {
+            rgb,
+            confidence,
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PrimaryColors {
-    pc: Box<[Box<[(Rgb8, f32)]>]>,
+    pc: Box<[Box<[AverageColor]>]>,
     block_size: u32,
 }
 
 impl PrimaryColors {
-    pub fn get(&self, x: u32, y: u32) -> Option<(Rgb8, f32)> {
+    pub fn get(&self, x: u32, y: u32) -> Option<AverageColor> {
         let x = (x / self.block_size) as usize;
         let y = (y / self.block_size) as usize;
 
@@ -51,14 +62,14 @@ impl PrimaryColors {
         while y < y_max {
             let mut x = x_min;
             while x < x_max {
-                if let Some((rgb, confidence)) = self.get(x, y) {
+                if let Some(AverageColor { rgb, confidence }) = self.get(x, y) {
                     let key = bucket_key(rgb);
                     let entry = buckets.entry(key).or_insert((0, [0, 0, 0], 0.0));
                     entry.0 += 1;
                     entry.1[0] += rgb[0] as u32;
                     entry.1[1] += rgb[1] as u32;
                     entry.1[2] += rgb[2] as u32;
-                    entry.2 += pop_score(rgb) * confidence;
+                    entry.2 += pop_score(rgb) * (confidence as f32 / 255.0);
                 }
                 x += block_size;
             }
@@ -82,17 +93,17 @@ impl PrimaryColors {
         pick(2).or_else(|| pick(1))
     }
 
-    pub fn block_average(data: &[u8], width: usize, x0: usize, y0: usize, x1: usize, y1: usize) -> (Rgb8, f32) {
-        let mut sum = [0u32; 3];
-        let mut min = [255u8; 3];
-        let mut max = [0u8; 3];
+    pub fn block_average(data: &[u8], width: usize, x0: usize, y0: usize, x1: usize, y1: usize) -> AverageColor {
+        let mut sum = [0u32; 4];
+        let mut min = [255u8; 4];
+        let mut max = [0u8; 4];
         let mut count = 0u32;
 
         for y in y0..y1 {
             for x in x0..x1 {
                 let idx = (y * width + x) * 4;
-                let px = [data[idx], data[idx + 1], data[idx + 2]];
-                for c in 0..3 {
+                let px = [data[idx], data[idx + 1], data[idx + 2], data[idx + 3]];
+                for c in 0..4 {
                     sum[c] += px[c] as u32;
                     min[c] = min[c].min(px[c]);
                     max[c] = max[c].max(px[c]);
@@ -102,19 +113,24 @@ impl PrimaryColors {
         }
 
         if count == 0 {
-            return ([0, 0, 0], 0.0);
+            return AverageColor::new([0, 0, 0], 0);
         }
 
-        let avg = [
+        let avg_rgb = [
             (sum[0] / count) as u8,
             (sum[1] / count) as u8,
             (sum[2] / count) as u8,
         ];
-        let spread = (max[0] as i32 - min[0] as i32)
-            + (max[1] as i32 - min[1] as i32)
-            + (max[2] as i32 - min[2] as i32);
+        let avg_a = sum[3] as f32 / count as f32;
+        let confidence = (
+            avg_a * (
+                (max[0] as f32 - min[0] as f32)
+                + (max[1] as f32 - min[1] as f32)
+                + (max[2] as f32 - min[2] as f32)
+            ) / (255.0 * 3.0)
+        ) as u8;
 
-        (avg, spread_to_confidence(spread))
+        AverageColor::new(avg_rgb, confidence)
     }
 
     pub fn build_from_rgba(width: usize, height: usize, data: &[u8]) -> Self {
@@ -122,9 +138,9 @@ impl PrimaryColors {
         let blocks_wide = (width + BLOCK - 1) / BLOCK;
         let blocks_high = (height + BLOCK - 1) / BLOCK;
 
-        let mut pc: Vec<Box<[(Rgb8, f32)]>> = Vec::with_capacity(blocks_high);
+        let mut pc: Vec<Box<[AverageColor]>> = Vec::with_capacity(blocks_high);
         for by in 0..blocks_high {
-            let mut row: Vec<(Rgb8, f32)> = Vec::with_capacity(blocks_wide);
+            let mut row: Vec<AverageColor> = Vec::with_capacity(blocks_wide);
             for bx in 0..blocks_wide {
                 let x0 = bx * BLOCK;
                 let y0 = by * BLOCK;

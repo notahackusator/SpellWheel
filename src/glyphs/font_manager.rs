@@ -106,6 +106,9 @@ impl FontManager {
                         size_pixels: DEFAULT_FONT_HEIGHT,
                         config: Some(FontConfig {
                             glyph_ranges: FontGlyphRanges::default(),
+                            oversample_h: 3,
+                            oversample_v: 1,
+                            pixel_snap_h: false,
                             ..FontConfig::default()
                         })
                     }
@@ -121,6 +124,9 @@ impl FontManager {
                 size_pixels: DEFAULT_FONT_HEIGHT,
                 config: Some(FontConfig {
                     glyph_ranges: FontGlyphRanges::default(),
+                    oversample_h: 3,
+                    oversample_v: 1,
+                    pixel_snap_h: false,
                     ..FontConfig::default()
                 })
             }
@@ -134,6 +140,9 @@ impl FontManager {
                     size_pixels: DEFAULT_FONT_HEIGHT,
                     config: Some(FontConfig {
                         glyph_ranges: FontGlyphRanges::from_slice(unsafe { mem::transmute(font_data.msg_char_ranges.as_slice()) }),
+                        oversample_h: 3,
+                        oversample_v: 1,
+                        pixel_snap_h: false,
                         ..FontConfig::default()
                     })
                 }

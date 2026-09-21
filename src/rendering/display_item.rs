@@ -31,6 +31,8 @@ impl Debug for DisplayItem {
     }
 }
 
+const BG_UV_OFFSET: f32 = 0.00125;
+
 impl DisplayItem {
     pub fn dist(&self, cos: f32, sin: f32) -> f32 {
         let dx = cos - self.cos_sin[0];
@@ -134,6 +136,75 @@ impl DisplayItem {
     pub fn draw(&self, settings: &Settings, ww: f32, wh: f32, img_dim: f32, num_items: usize, ui: &Ui, draw_list: &DrawListMut) {
         let [cx, cy] = [ww / 2.0, wh / 2.0];
 
+        self.draw_controller_arc(settings, ww, wh, img_dim, num_items, draw_list, cx, cy);
+
+        let (
+            Some(AtlasIcon { texture_id, rect, primary_color, .. }),
+            Some(static_icons)
+        ) = (&self.icon, IconManager::get_static_icons()) else {
+            draw_list.add_rect(
+                self.img_c1,
+                self.img_c2,
+                [0.5, 0.5, 0.5, 1.0]
+            ).build();
+            return;
+        };
+
+        match settings.style() {
+            Style::Pretty => {
+                let item_bg = if self.is_highlighted {
+                    self.draw_centered_name(settings, ui, draw_list, cx, cy);
+                    static_icons.selected_item_bg
+                } else {
+                    static_icons.item_bg
+                };
+                let col = u32::from_be_bytes([0xFE, primary_color[2], primary_color[1], primary_color[0]]);
+                draw_list.add_image(
+                    item_bg,
+                    self.img_c1,
+                    self.img_c2,
+                )
+                    .col(col)
+                    .uv_min([BG_UV_OFFSET, BG_UV_OFFSET])
+                    .uv_max([1.0 - BG_UV_OFFSET, 1.0 - BG_UV_OFFSET])
+                    .build();
+            }
+            Style::Simple => {
+                if self.is_highlighted {
+                    draw_list.add_rect(
+                        self.rect_c1,
+                        self.rect_c2,
+                        [1.0, 1.0, 1.0, 0.2]
+                    ).filled(true).rounding(10.0).build();
+
+                    self.draw_centered_name(settings, ui, draw_list, cx, cy);
+                }
+            }
+        }
+
+        let [x, y, w, h] = *rect;
+        draw_list.add_image(
+            *texture_id,
+            self.img_c1,
+            self.img_c2,
+        )
+            .uv_min([x, y])
+            .uv_max([x + w, y + h])
+            .col(0xFE_FF_FF_FF)
+            .build();
+
+        if let ItemNames::Show = settings.item_names() {
+            self.name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), Centered::X, settings.text_shadows);
+        }
+    }
+
+    fn draw_centered_name(&self, settings: &Settings, ui: &Ui, draw_list: &DrawListMut, cx: f32, cy: f32) {
+        if let ItemNames::Center = settings.item_names() {
+            self.name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), Centered::XY, settings.text_shadows);
+        }
+    }
+
+    fn draw_controller_arc(&self, settings: &Settings, ww: f32, wh: f32, img_dim: f32, num_items: usize, draw_list: &DrawListMut, cx: f32, cy: f32) {
         if settings.using_controller {
             let thickness = ww.min(wh) / 200.0;
 
@@ -148,54 +219,6 @@ impl DisplayItem {
                 cx, cy, radius, self.angle - angle_offset, self.angle + angle_offset
             );
             draw_list.add_bezier_curve(bezier[0], bezier[1], bezier[2], bezier[3], [1.0; 4]).thickness(thickness).build();
-        }
-        if let Style::Pretty = settings.style() {
-            match (&self.icon, IconManager::get_item_bg()) {
-                (Some(AtlasIcon { primary_color, .. }), Some(item_bg)) => {
-                    let col = u32::from_be_bytes([0xFE, primary_color[2], primary_color[1], primary_color[0]]);
-                    draw_list.add_image(
-                        item_bg,
-                        self.img_c1,
-                        self.img_c2,
-                    )
-                        .col(col)
-                        .build();
-                }
-                _ => {}
-            }
-        }
-        if self.is_highlighted {
-            draw_list.add_rect(
-                self.rect_c1,
-                self.rect_c2,
-                [1.0, 1.0, 1.0, 0.2]
-            ).filled(true).rounding(10.0).build();
-
-            if let ItemNames::Center = settings.item_names() {
-                self.name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), Centered::XY, settings.text_shadows);
-            }
-        }
-        match self.icon {
-            Some(AtlasIcon { texture_id, rect, .. }) => {
-                let [x, y, w, h] = rect;
-                draw_list.add_image(
-                    texture_id,
-                    self.img_c1,
-                    self.img_c2,
-                )
-                    .uv_min([x, y])
-                    .uv_max([x + w, y + h])
-                    .col(0xFE_FF_FF_FF)
-                    .build()
-            },
-            None => draw_list.add_rect(
-                self.img_c1,
-                self.img_c2,
-                [0.5, 0.5, 0.5, 1.0]
-            ).build()
-        }
-        if let ItemNames::Show = settings.item_names() {
-            self.name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), Centered::X, settings.text_shadows);
         }
     }
 }

@@ -186,7 +186,7 @@ impl<S: AsRef<str>> From<S> for ItemNames {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Style {
     Simple,
     Pretty
