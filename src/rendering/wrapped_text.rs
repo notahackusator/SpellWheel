@@ -4,6 +4,7 @@ pub struct WrappedText {
     pub lines: Vec<String>,
     pub widths: Vec<f32>,
     pub line_height: f32,
+    pub scale: f32,
 }
 
 impl WrappedText {
@@ -41,13 +42,60 @@ impl WrappedText {
             widths.push(width);
         }
 
+        let scale = 1.0;
+
         Self {
             lines,
             widths,
             line_height,
+            scale,
         }
     }
 
+    pub fn draw(&self, ui: &Ui, pos: [f32; 2], color: [f32; 4], centered: Centered, shadow: bool) {
+        ui.group(|| {
+            ui.set_window_font_scale(self.scale);
+
+            for (i, (line, width)) in self.lines.iter().zip(self.widths.iter()).enumerate() {
+                let width = width * self.scale;
+                let line_height = self.line_height * self.scale;
+                let x = if centered.x() {
+                    pos[0] - width / 2.0
+                } else {
+                    pos[0]
+                };
+                let y = if centered.y() {
+                    pos[1] + i as f32 * line_height - (self.lines.len() as f32 / 2.0) * line_height
+                } else {
+                    pos[1] + i as f32 * line_height
+                };
+
+                if shadow {
+                    const SHADOW_DELTAS: [[f32; 2]; 4] = [
+                        [-1.0, -1.0], /*[0.0, -1.0],*/ [1.0, -1.0],
+                        /*[-1.0,  0.0], [0.0,  0.0], [1.0,  0.0],*/
+                        [-1.0, 1.0], /*[0.0,  1.0],*/ [1.0, 1.0],
+                    ];
+
+                    for [dx, dy] in SHADOW_DELTAS {
+                        ui.set_cursor_pos([x + dx, y + dy]);
+                        ui.text_colored(
+                            [0.0, 0.0, 0.0, 1.0],
+                            line,
+                        );
+                    }
+                }
+
+                ui.set_cursor_pos([x, y]);
+                ui.text_colored(
+                    color,
+                    line,
+                );
+            }
+        });
+    }
+
+    #[deprecated]
     pub fn add_to_draw_list(&self, draw_list: &DrawListMut, pos: [f32; 2], color: [f32; 4], centered: Centered, shadow: bool) {
         for (i, (line, width)) in self.lines.iter().zip(self.widths.iter()).enumerate() {
             let x = if centered.x() {

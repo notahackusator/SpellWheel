@@ -158,8 +158,10 @@ pub fn render_wheel(items: &mut [DisplayItem], ui: &Ui, draw_list: &DrawListMut)
     let img_dim = DisplayItem::img_dim();
     render_selector(&settings, ww, wh, img_dim, draw_list, angle, can_select);
 
-    for item in items.iter() {
-        item.draw(&settings, ww, wh, img_dim, items.len(), ui, draw_list);
+    let num_items = items.len();
+    for item in items.iter_mut() {
+        item.tick(&settings);
+        item.draw(&settings, ww, wh, img_dim, num_items, ui, draw_list);
     }
 }
 

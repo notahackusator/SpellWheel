@@ -67,6 +67,7 @@ settings!(
     quick_items_button: String,
     using_controller: bool,
     style: String,
+    highlight_time: f32,
     controller_wheel_open_delay: f32,
     center_on_close: bool,
     switch_instantly: bool,
@@ -110,6 +111,10 @@ pub const fn center_on_close() -> bool {
 
 pub fn style() -> String {
     "pretty".to_string()
+}
+
+pub const fn highlight_time() -> f32 {
+    0.15
 }
 
 pub const fn controller_wheel_open_delay() -> f32 {

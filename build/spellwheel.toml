@@ -19,10 +19,14 @@ using_controller = false
 # The style of the spell / item wheel. Use "pretty" or "simple". Default is "pretty"
 style = "pretty"
 
+# How long should the highlight effect for chosen items / spells last in the wheel.
+# Only affects things with "pretty" style. Default is 0.15.
+highlight_time = 0.15
+
 # Centers the cursor after selecting an item / spell if you're using keyboard and mouse
 center_on_close = true
 
-# How is many seconds needed to press the button in order to open the wheel on controller. Default is 0.5.
+# How many seconds needed to press the button in order to open the wheel on controller. Default is 0.5.
 controller_wheel_open_delay = 0.5
 
 # Whether to switch instantly to the selected spell or wait until the wheel is closed. Default is true.
