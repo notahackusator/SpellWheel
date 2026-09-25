@@ -1,12 +1,12 @@
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::gamepad::gamepad_state;
 use crate::hwindow::get_window_size;
+use crate::icons::icon_manager::IconManager;
 use crate::mouse::get_mouse_state;
 use crate::rendering::debug_renderer::draw_debug;
 use crate::rendering::display_item::DisplayItem;
-use crate::settings::Settings;
+use crate::settings::{Settings, Style};
 use imgui::{DrawListMut, Ui};
-
 
 // Ok = controller pos
 // Err = cursor pos
@@ -83,43 +83,118 @@ pub fn arc_bezier(cx: f32, cy: f32, radius: f32, start_angle: f32, end_angle: f3
     [p0, p1, p2, p3]
 }
 
-pub fn render_selector(settings: &Settings, ww: f32, wh: f32, img_dim: f32, draw_list: &DrawListMut, angle: f32, can_select: bool) {
-    if !settings.using_controller || !can_select {
-        return;
-    }
+pub fn rotated_image(cx: f32, cy: f32, width: f32, height: f32, angle: f32) -> [[f32; 2]; 4] {
+    let sin = angle.sin();
+    let cos = angle.cos();
 
-    let thickness = ww.min(wh) / 200.0;
-    let radius = settings.radius_multiplier * ww.min(wh) - img_dim - thickness * 2.0;
+    let hw = width / 2.0;
+    let hh = height / 2.0;
 
-    let [cx, cy] = [ww / 2.0, wh / 2.0];
-
-    let bezier = arc_bezier(
-        cx, cy, radius, angle - 0.125 * std::f32::consts::TAU, angle + 0.125 * std::f32::consts::TAU
-    );
-    draw_list.add_bezier_curve(bezier[0], bezier[1], bezier[2], bezier[3], [1.0; 4]).thickness(thickness).build();
-
-    let triangle_center_base_radius = radius + thickness;
-    let [triangle_cx, triangle_cy] = [
-        cx + triangle_center_base_radius * angle.cos(),
-        cy + triangle_center_base_radius * angle.sin()
+    let corners = [
+        [ hw, -hh],
+        [ hw,  hh],
+        [-hw,  hh],
+        [-hw, -hh],
     ];
 
-    let circle_third = 2.0 * std::f32::consts::FRAC_PI_3;
-    draw_list.add_triangle(
-        [
-            triangle_cx + thickness * angle.cos(),
-            triangle_cy + thickness * angle.sin()
-        ],
-        [
-            triangle_cx + thickness * (angle + circle_third).cos(),
-            triangle_cy + thickness * (angle + circle_third).sin()
-        ],
-        [
-            triangle_cx + thickness * (angle + 2.0 * circle_third).cos(),
-            triangle_cy + thickness * (angle + 2.0 * circle_third).sin()
-        ],
-        [1.0; 4]
-    ).filled(true).build();
+    corners.map(|[x, y]| [
+        cx + x * cos - y * sin,
+        cy + x * sin + y * cos,
+    ])
+}
+
+pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: f32, img_dim: f32, draw_list: &DrawListMut, angle: f32, can_select: bool) {
+    match settings.style() {
+        Style::Pretty => {
+            let Some(static_icons) = IconManager::get_static_icons() else {
+                return;
+            };
+
+            let thickness = ww.min(wh) / 200.0;
+            let radius = settings.radius_multiplier * ww.min(wh) - img_dim - thickness * 2.0;
+
+            let [cx, cy] = [ww / 2.0, wh / 2.0];
+
+            let [r, g, b, _, angle] = items.iter()
+                .map(|di| (
+                    settings.normalized_highlight_time(di.highlight_time),
+                    di.angle,
+                    di.icon.as_ref().map(|icon| icon.primary_color)
+                ))
+                .filter_map(|(highlight_time, angle, col)| col.map(|col| [
+                    highlight_time * col[0] as f32,
+                    highlight_time * col[1] as f32,
+                    highlight_time * col[2] as f32,
+                    highlight_time, // this will become col[3]
+                    angle,          // this will become col[4]
+                ]))
+                .reduce(|col1, col2| {
+                    let x = col1[4].cos() * col1[3] + col2[4].cos() * col2[3];
+                    let y = col1[4].sin() * col1[3] + col2[4].sin() * col2[3];
+                    [
+                        col1[0] + col2[0],
+                        col1[1] + col2[1],
+                        col1[2] + col2[2],
+                        col1[3] + col2[3],
+                        y.atan2(x),
+                    ]
+                })
+                .unwrap_or([255.0, 255.0, 255.0, 0.0, 0.0]);
+
+            let rotated = rotated_image(
+                cx, cy, radius * 2.0, radius * 2.0, angle
+            );
+
+            let col = u32::from_be_bytes([0xFE, b as u8, g as u8, r as u8]);
+            draw_list.add_image_quad(
+                static_icons.selector,
+                rotated[0],
+                rotated[1],
+                rotated[2],
+                rotated[3],
+            )
+                .col(col)
+                .build();
+        }
+        Style::Simple => {
+            if !settings.using_controller || !can_select {
+                return;
+            }
+
+            let thickness = ww.min(wh) / 200.0;
+            let radius = settings.radius_multiplier * ww.min(wh) - img_dim - thickness * 2.0;
+
+            let [cx, cy] = [ww / 2.0, wh / 2.0];
+
+            let bezier = arc_bezier(
+                cx, cy, radius, angle - 0.125 * std::f32::consts::TAU, angle + 0.125 * std::f32::consts::TAU
+            );
+            draw_list.add_bezier_curve(bezier[0], bezier[1], bezier[2], bezier[3], [1.0; 4]).thickness(thickness).build();
+
+            let triangle_center_base_radius = radius + thickness;
+            let [triangle_cx, triangle_cy] = [
+                cx + triangle_center_base_radius * angle.cos(),
+                cy + triangle_center_base_radius * angle.sin()
+            ];
+
+            let circle_third = 2.0 * std::f32::consts::FRAC_PI_3;
+            draw_list.add_triangle(
+                [
+                    triangle_cx + thickness * angle.cos(),
+                    triangle_cy + thickness * angle.sin()
+                ],
+                [
+                    triangle_cx + thickness * (angle + circle_third).cos(),
+                    triangle_cy + thickness * (angle + circle_third).sin()
+                ],
+                [
+                    triangle_cx + thickness * (angle + 2.0 * circle_third).cos(),
+                    triangle_cy + thickness * (angle + 2.0 * circle_third).sin()
+                ],
+                [1.0; 4]
+            ).filled(true).build();
+        }
+    }
 }
 
 pub fn render_wheel(items: &mut [DisplayItem], ui: &Ui, draw_list: &DrawListMut) {
@@ -156,7 +231,7 @@ pub fn render_wheel(items: &mut [DisplayItem], ui: &Ui, draw_list: &DrawListMut)
     }
 
     let img_dim = DisplayItem::img_dim();
-    render_selector(&settings, ww, wh, img_dim, draw_list, angle, can_select);
+    render_selector(&settings, items, ww, wh, img_dim, draw_list, angle, can_select);
 
     let num_items = items.len();
     for item in items.iter_mut() {

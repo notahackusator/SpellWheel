@@ -22,6 +22,7 @@ pub struct StaticIcons {
     pub item_bg: TextureId,
     pub selected_item_bg: TextureId,
     pub text_bg: TextureId,
+    pub selector: TextureId,
 }
 
 impl StaticIcons {
@@ -30,6 +31,7 @@ impl StaticIcons {
             item_bg: TextureId::new(0),
             selected_item_bg: TextureId::new(0),
             text_bg: TextureId::new(0),
+            selector: TextureId::new(0),
         }
     }
 }
@@ -144,6 +146,12 @@ impl IconManager {
             .to_rgba8();
         self.static_icons.text_bg = render_context.load_texture(
             DXGI_FORMAT_R8G8B8A8_UNORM, text_bg.as_bytes(), text_bg.width(), text_bg.height()
+        )?;
+
+        let selector = image::load_from_memory(include_bytes!("../../assets/selector.png"))?
+            .to_rgba8();
+        self.static_icons.selector = render_context.load_texture(
+            DXGI_FORMAT_R8G8B8A8_UNORM, selector.as_bytes(), selector.width(), selector.height()
         )?;
 
         Ok(())

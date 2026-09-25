@@ -1,7 +1,7 @@
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::hwindow::get_window_size;
-use crate::icons::icon_manager::IconManager;
 use crate::icons::AtlasIcon;
+use crate::icons::icon_manager::IconManager;
 use crate::items::Item;
 use crate::rendering::wheel_renderer::arc_bezier;
 use crate::rendering::wrapped_text::{Centered, WrappedText};
@@ -180,7 +180,7 @@ impl DisplayItem {
 
         self.highlight_time = self.highlight_time.clamp(0.0, settings.highlight_time);
 
-        self.name.scale = 1.0 + self.highlight_time;
+        self.name.scale = 1.0 + settings.normalized_highlight_time(self.highlight_time) * settings.highlight_expansion;
 
         self.last_tick = tick;
     }
@@ -206,7 +206,7 @@ impl DisplayItem {
 
         match settings.style() {
             Style::Pretty => {
-                let s_bg_alpha = ((0xFE as f32) * self.highlight_time / settings.highlight_time) as u8;
+                let s_bg_alpha = ((0xFE as f32) * settings.normalized_highlight_time(self.highlight_time)) as u8;
                 let bg_alpha = 0xFE - s_bg_alpha;
 
                 for (bg, alpha) in [(static_icons.item_bg, bg_alpha), (static_icons.selected_item_bg, s_bg_alpha)] {

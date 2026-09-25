@@ -23,6 +23,10 @@ style = "pretty"
 # Only affects things with "pretty" style. Default is 0.15.
 highlight_time = 0.15
 
+# How much to expand chosen items / spells last in the wheel. Only affects things with "pretty" style.
+# This is a fraction of the original size, so 0.15 means 15% larger than the original size. Default is 0.15.
+highlight_expansion = 0.15
+
 # Centers the cursor after selecting an item / spell if you're using keyboard and mouse
 center_on_close = true
 

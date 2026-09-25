@@ -68,6 +68,7 @@ settings!(
     using_controller: bool,
     style: String,
     highlight_time: f32,
+    highlight_expansion: f32,
     controller_wheel_open_delay: f32,
     center_on_close: bool,
     switch_instantly: bool,
@@ -114,6 +115,10 @@ pub fn style() -> String {
 }
 
 pub const fn highlight_time() -> f32 {
+    0.15
+}
+
+pub const fn highlight_expansion() -> f32 {
     0.15
 }
 
@@ -259,5 +264,18 @@ impl Settings {
 
     pub fn style(&self) -> Style {
         self.style.as_str().into()
+    }
+    
+    // Returns the highlight time t normalized. Takes into account self.highlight_time = 0.
+    pub fn normalized_highlight_time(&self, t: f32) -> f32 {
+        if self.highlight_time == 0.0 {
+            if t > 0.0 {
+                1.0
+            } else {
+                0.0
+            }
+        } else {
+            t / self.highlight_time
+        }
     }
 }
