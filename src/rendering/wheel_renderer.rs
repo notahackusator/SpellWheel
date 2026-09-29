@@ -103,7 +103,11 @@ pub fn rotated_image(cx: f32, cy: f32, width: f32, height: f32, angle: f32) -> [
     ])
 }
 
-pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: f32, img_dim: f32, draw_list: &DrawListMut, angle: f32, can_select: bool) {
+pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: f32, img_dim: f32,
+                       draw_list: &DrawListMut, mut angle: f32, can_select: bool, dist_sqr: f32, min_dist_sqr: f32) {
+    if settings.using_controller && !can_select {
+        return;
+    }
     match settings.style() {
         Style::Pretty => {
             let Some(static_icons) = IconManager::get_static_icons() else {
@@ -115,7 +119,7 @@ pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: 
 
             let [cx, cy] = [ww / 2.0, wh / 2.0];
 
-            let [r, g, b, _, angle] = items.iter()
+            let [r, g, b, _, item_angle] = items.iter()
                 .map(|di| (
                     settings.normalized_highlight_time(di.highlight_time),
                     di.angle,
@@ -141,11 +145,18 @@ pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: 
                 })
                 .unwrap_or([255.0, 255.0, 255.0, 0.0, 0.0]);
 
+            if !settings.using_controller {
+                angle = item_angle;
+            }
+            // let normalized_selection = (dist_sqr / min_dist_sqr).clamp(0.0, 1.0);
+            // let radius_mul = (normalized_selection + 1.0) / 2.0;
+            let radius_mul = 1.0;
+            let scale = radius * 2.0 * radius_mul;
             let rotated = rotated_image(
-                cx, cy, radius * 2.0, radius * 2.0, angle
+                cx, cy, scale, scale, angle
             );
 
-            let col = u32::from_be_bytes([0xFE, b as u8, g as u8, r as u8]);
+            let col = u32::from_be_bytes([(0xFE as f32 * radius_mul) as u8, b as u8, g as u8, r as u8]);
             draw_list.add_image_quad(
                 static_icons.selector,
                 rotated[0],
@@ -231,7 +242,7 @@ pub fn render_wheel(items: &mut [DisplayItem], ui: &Ui, draw_list: &DrawListMut)
     }
 
     let img_dim = DisplayItem::img_dim();
-    render_selector(&settings, items, ww, wh, img_dim, draw_list, angle, can_select);
+    render_selector(&settings, items, ww, wh, img_dim, draw_list, angle, can_select, dist_sqr, min_radius_sqr);
 
     let num_items = items.len();
     for item in items.iter_mut() {

@@ -180,15 +180,18 @@ impl DisplayItem {
 
         self.highlight_time = self.highlight_time.clamp(0.0, settings.highlight_time);
 
-        self.name.scale = 1.0 + settings.normalized_highlight_time(self.highlight_time) * settings.highlight_expansion;
+        let scale_add = if let Style::Pretty = settings.style() {
+            settings.normalized_highlight_time(self.highlight_time) * settings.highlight_expansion
+        } else {
+            0.0
+        };
+        self.name.scale = 1.0 + scale_add;
 
         self.last_tick = tick;
     }
 
     pub fn draw(&self, settings: &Settings, ww: f32, wh: f32, img_dim: f32, num_items: usize, ui: &Ui, draw_list: &DrawListMut) {
         let [cx, cy] = [ww / 2.0, wh / 2.0];
-
-        self.draw_controller_arc(settings, ww, wh, img_dim, num_items, draw_list, cx, cy);
         
         let positions = Positions::new(&self.name, self.pos[0], self.pos[1]);
 
@@ -222,8 +225,10 @@ impl DisplayItem {
                         .build();
                 }
 
+                let col = u32::from_be_bytes([0xFE, primary_color[2], primary_color[1], primary_color[0]]);
+                self.draw_controller_arc(settings, ww, wh, img_dim, num_items, draw_list, cx, cy, col);
+
                 if let ItemNames::Show = settings.item_names() {
-                    let col = u32::from_be_bytes([0xFE, primary_color[2], primary_color[1], primary_color[0]]);
                     draw_list.add_image(
                         static_icons.text_bg,
                         positions.text_bg_c1,
@@ -233,7 +238,6 @@ impl DisplayItem {
                         .build();
 
                     self.name.draw(ui, positions.text_pos, ui.style_color(imgui::StyleColor::Text), Centered::X, settings.text_shadows);
-                    // self.name.add_to_draw_list(draw_list, self.text_pos, ui.style_color(imgui::StyleColor::Text), Centered::X, settings.text_shadows);
                 }
             }
             Style::Simple => {
@@ -246,11 +250,12 @@ impl DisplayItem {
                 }
 
                 if let ItemNames::Show = settings.item_names() {
-                    self.name.add_to_draw_list(draw_list, positions.text_pos, ui.style_color(imgui::StyleColor::Text), Centered::X, settings.text_shadows);
+                    self.name.draw(ui, positions.text_pos, ui.style_color(imgui::StyleColor::Text), Centered::X, settings.text_shadows);
                 }
+                self.draw_controller_arc(settings, ww, wh, img_dim, num_items, draw_list, cx, cy, 0xFE_FF_FF_FF);
             }
         }
-        self.draw_centered_name(settings, ui, draw_list, cx, cy);
+        self.draw_centered_name(settings, ui, cx, cy);
 
         let [x, y, w, h] = *rect;
         draw_list.add_image(
@@ -264,18 +269,25 @@ impl DisplayItem {
             .build();
     }
 
-    fn draw_centered_name(&self, settings: &Settings, ui: &Ui, draw_list: &DrawListMut, cx: f32, cy: f32) {
+    fn draw_centered_name(&self, settings: &Settings, ui: &Ui, cx: f32, cy: f32) {
         if !self.is_highlighted {
             return;
         }
         if let ItemNames::Center = settings.item_names() {
-            self.name.add_to_draw_list(draw_list, [cx, cy], ui.style_color(imgui::StyleColor::Text), Centered::XY, settings.text_shadows);
+            self.name.draw(ui, [cx, cy], ui.style_color(imgui::StyleColor::Text), Centered::XY, settings.text_shadows);
         }
     }
 
-    fn draw_controller_arc(&self, settings: &Settings, ww: f32, wh: f32, img_dim: f32, num_items: usize, draw_list: &DrawListMut, cx: f32, cy: f32) {
+    fn draw_controller_arc(&self, settings: &Settings, ww: f32, wh: f32, img_dim: f32,
+                           num_items: usize, draw_list: &DrawListMut, cx: f32, cy: f32, col: u32) {
         if settings.using_controller {
             let thickness = ww.min(wh) / 200.0;
+
+            let thickness_mul = if let Style::Pretty = settings.style() {
+                1.0 + settings.normalized_highlight_time(self.highlight_time)
+            } else {
+                1.0
+            };
 
             let radius = settings.radius_multiplier * ww.min(wh) - img_dim;
 
@@ -287,7 +299,9 @@ impl DisplayItem {
             let bezier = arc_bezier(
                 cx, cy, radius, self.angle - angle_offset, self.angle + angle_offset
             );
-            draw_list.add_bezier_curve(bezier[0], bezier[1], bezier[2], bezier[3], [1.0; 4]).thickness(thickness).build();
+            draw_list.add_bezier_curve(bezier[0], bezier[1], bezier[2], bezier[3], col)
+                .thickness(thickness * thickness_mul)
+                .build();
         }
     }
 }
