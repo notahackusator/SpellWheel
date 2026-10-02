@@ -37,7 +37,7 @@ pub fn selected_wheel_type() -> WheelType {
 	] {
 		match settings.using_controller {
 			true => {
-				let mut prev_button_mutex = button_mutex.unwrap();
+				let mut prev_button_mutex = button_mutex.expect("Couldn't get button_mutex");
 				let button = settings_button_default;
 				let button_changed = match prev_button_mutex.as_ref() {
 					Some(prev_button) => &button == prev_button,
@@ -69,7 +69,7 @@ pub fn selected_wheel_type() -> WheelType {
 				}
 			}
 			false => {
-				let mut prev_key_mutex = key_mutex.unwrap();
+				let mut prev_key_mutex = key_mutex.expect("Couldn't get key_mutex");
 				let key = settings_key_default;
 				let key_changed = match prev_key_mutex.as_ref() {
 					Some(prev_key) => &key == prev_key,

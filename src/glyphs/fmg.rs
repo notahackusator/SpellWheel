@@ -88,9 +88,9 @@ impl<'a> Reader<'a> {
     fn i32(&mut self) -> Result<i32> {
         let bytes = self.take(4)?;
         Ok(if self.big_endian {
-            i32::from_be_bytes(bytes.try_into().unwrap())
+            i32::from_be_bytes(bytes.try_into()?)
         } else {
-            i32::from_le_bytes(bytes.try_into().unwrap())
+            i32::from_le_bytes(bytes.try_into()?)
         })
     }
 
@@ -108,9 +108,9 @@ impl<'a> Reader<'a> {
         if self.wide {
             let bytes = self.take(8)?;
             Ok(if self.big_endian {
-                i64::from_be_bytes(bytes.try_into().unwrap())
+                i64::from_be_bytes(bytes.try_into()?)
             } else {
-                i64::from_le_bytes(bytes.try_into().unwrap())
+                i64::from_le_bytes(bytes.try_into()?)
             })
         } else {
             Ok(self.i32()? as i64)
@@ -144,9 +144,9 @@ impl<'a> Reader<'a> {
             let bytes = self.data.get(i..i + 2)
                 .ok_or_else(|| anyhow::anyhow!("UTF-16 read past end of buffer"))?;
             let unit = if self.big_endian {
-                u16::from_be_bytes(bytes.try_into().unwrap())
+                u16::from_be_bytes(bytes.try_into()?)
             } else {
-                u16::from_le_bytes(bytes.try_into().unwrap())
+                u16::from_le_bytes(bytes.try_into()?)
             };
             i += 2;
             if unit == 0 {

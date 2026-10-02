@@ -62,7 +62,7 @@ fn parse_node(await_graphics: &mut Vec<AwaitGraphics>, atlas: Arc<Mutex<Atlas>>,
         return Ok(());
     };
 
-    let mut atlas_lock = atlas.lock().unwrap();
+    let mut atlas_lock = atlas.lock().expect("Couldn't get atlas");
     // This prevents unnecessary atlases from loading
     atlas_lock.used = true;
     drop(atlas_lock);
@@ -70,7 +70,7 @@ fn parse_node(await_graphics: &mut Vec<AwaitGraphics>, atlas: Arc<Mutex<Atlas>>,
     let rect = AtlasIcon::try_parse_rect(&node)?;
 
     await_graphics.push(Box::new(move |_, icons| {
-        let atlas_lock = atlas.lock().unwrap();
+        let atlas_lock = atlas.lock().expect("Couldn't get atlas");
         let icon = AtlasIcon::from_geometry(atlas_lock.clone(), rect).add_span()?;
         #[cfg(feature = "atlas-dump")]
         crate::icons::atlas_dump::upload_icon_data(id, &icon);
@@ -198,13 +198,13 @@ fn parse_atlases(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_s
 
                 size_c += dds_bytes.len() as u32;
                 await_graphics.push(Box::new(move |render_context, _| {
-                    let mut atlas = atlas.lock().unwrap();
+                    let mut atlas = atlas.lock().expect("Couldn't get atlas");
                     if !atlas.used {
                         return Ok(());
                     }
                     // Stores atlas
                     let texture_id = render_context.load_texture(
-                        DXGI_FORMAT(format as i32), dds.get_data(0).unwrap(), dds.get_width(), dds.get_height()
+                        DXGI_FORMAT(format as i32), dds.get_data(0).expect("Couldn't get DDS data"), dds.get_width(), dds.get_height()
                     )?;
                     atlas.set_texture(texture_id, dds.get_width(), dds.get_height());
                     Ok(())
@@ -228,7 +228,7 @@ fn parse_atlases(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_s
                 size_u += width * height * 4;
 
                 await_graphics.push(Box::new(move |render_context, _| {
-                    let mut atlas = atlas.lock().unwrap();
+                    let mut atlas = atlas.lock().expect("Couldn't get atlas");
                     if !atlas.used {
                         return Ok(());
                     }

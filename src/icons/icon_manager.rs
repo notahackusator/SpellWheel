@@ -107,7 +107,7 @@ impl IconManager {
         tracing::info!("Loading icons...");
         ICON_MANAGER.get().expect("IconManager was never initialized")
             .write()
-            .unwrap()
+            .expect("Couldn't write to IconManager")
             .load_inner(render_context);
         tracing::info!("Finished loading icons");
 
@@ -117,14 +117,18 @@ impl IconManager {
     
     fn load_inner(&mut self, render_context: &mut dyn RenderContext) {
         let start = Instant::now();
+        tracing::info!("Loading vanilla / modded icons...");
         for await_graphics in take(&mut self.await_graphics) {
             if let Err(err) = await_graphics(render_context, &mut self.icons) {
                 tracing::error!("Error loading icons: {err}");
             }
         }
+        tracing::info!("Finished loading vanilla / modded icons.");
+        tracing::info!("Loading static icons...");
         if let Err(err) = self.load_static_icons(render_context) {
             tracing::error!("Error loading item background: {err}");
         }
+        tracing::info!("Finished static icons.");
         let time = start.elapsed();
         tracing::info!("Finished loading icon graphics in {time:?}");
     }

@@ -1,12 +1,19 @@
+pub mod display_settings;
+pub mod visual_toml_parser;
+
 use crate::debugging::{run_every, run_once};
 use lazy_static::lazy_static;
 use std::fs::read_to_string;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 use std::time::Duration;
 use crate::paths;
 
 macro_rules! settings {
     ($($name:ident: $t:ty),*$(,)?) => {
+        pub const KEYS: &[&str] = &[
+            $(stringify!($name),)*
+        ];
+
         #[derive(Clone)]
         pub struct Settings {
             $(
@@ -212,33 +219,113 @@ impl<S: AsRef<str>> From<S> for Style {
     }
 }
 
-lazy_static!(
-    static ref SETTINGS_CACHE: Arc<RwLock<Settings>> = Arc::new(RwLock::new(Settings::default()));
-);
-impl Settings {
-    pub fn open_toml() -> anyhow::Result<Self> {
-        let settings_path = paths::settings();
-        let data = match read_to_string(&settings_path) {
-            Ok(data) => data,
-            Err(err) => {
-                tracing::error!("Tried to look for settings in {settings_path:?}, but encountered an error");
-                return Err(err.into());
-            }
-        };
-        toml::from_str(&data).map_err(|err| err.into())
+pub struct SettingsContext {
+    src: Arc<str>,
+    settings: Settings,
+}
+
+impl Default for SettingsContext {
+    fn default() -> Self {
+        Self {
+            src: "".into(),
+            settings: Default::default(),
+        }
+    }
+}
+
+pub enum SCRes {
+    Ok(SettingsContext),
+    ParseErr(SettingsContext, anyhow::Error),
+    Err(anyhow::Error)
+}
+
+impl SCRes {
+    pub fn into_sc(self) -> Option<SettingsContext> {
+        match self {
+            SCRes::Ok(sc) => Some(sc),
+            SCRes::ParseErr(sc, _) => Some(sc),
+            SCRes::Err(_) => None,
+        }
     }
 
-    pub fn read_or_default() -> Self {
-        run_every!("Settings::read_or_default" every Duration::from_secs(1) => {
-            let settings = Self::open_toml().unwrap_or_else(|err| {
+    pub fn into_sc_or(self, sc: SettingsContext) -> SettingsContext {
+        self.into_sc().unwrap_or(sc)
+    }
+
+    pub fn into_sc_or_else<F: FnOnce() -> SettingsContext>(self, f: F) -> SettingsContext {
+        self.into_sc().unwrap_or_else(f)
+    }
+
+    pub fn get_err(&self) -> Option<&anyhow::Error> {
+        match self {
+            SCRes::Ok(_) => None,
+            SCRes::ParseErr(_, err) => Some(err),
+            SCRes::Err(err) => Some(err),
+        }
+    }
+}
+
+impl SettingsContext {
+    pub fn open_toml() -> SCRes {
+        let settings_path = paths::settings();
+        let src = match read_to_string(&settings_path) {
+            Ok(src) => src,
+            Err(err) => {
+                tracing::error!("Tried to look for settings in {settings_path:?}, but encountered an error");
+                return SCRes::Err(err.into());
+            }
+        };
+
+        match toml::from_str(&src) {
+            Ok(settings) => {
+                SCRes::Ok(Self {
+                    src: src.into(),
+                    settings,
+                })
+            }
+            Err(err) => {
+                SCRes::ParseErr(
+                    Self {
+                        src: src.into(),
+                        settings: Settings::default(),
+                    },
+                    err.into()
+                )
+            }
+        }
+    }
+
+    pub fn read_or_default() -> RwLockReadGuard<'static, Self> {
+        run_every!("SettingsContext::read_or_default" every Duration::from_secs(1) => {
+            let sc = SettingsContext::open_toml();
+            if let Some(err) = sc.get_err() {
                 tracing::error!("Could not open settings TOML, using default settings instead: {err}");
-                Settings::default()
-            });
-            *SETTINGS_CACHE.write().expect("Could not acquire settings cache") = settings.clone();
-            return settings;
+            }
+            let ctx = sc.into_sc_or_else(SettingsContext::default);
+            *SETTINGS_CACHE.write().expect("Could not acquire settings cache") = ctx;
         });
 
-        SETTINGS_CACHE.read().expect("Could not acquire settings cache").clone()
+        SETTINGS_CACHE.read().expect("Could not acquire settings cache")
+    }
+}
+
+lazy_static!(
+    static ref SETTINGS_CACHE: Arc<RwLock<SettingsContext>> = Arc::new(RwLock::new(SettingsContext::default()));
+);
+impl Settings {
+    pub fn read_or_default() -> Self {
+        run_every!("Settings::read_or_default" every Duration::from_secs(1) => {
+            let sc = SettingsContext::open_toml();
+            if let Some(err) = sc.get_err() {
+                tracing::error!("Could not open settings TOML, using default settings instead: {err}");
+            }
+            let ctx = sc.into_sc_or_else(SettingsContext::default);
+            let out = ctx.settings.clone();
+            *SETTINGS_CACHE.write().expect("Could not acquire settings cache") = ctx;
+            return out;
+        });
+
+        SETTINGS_CACHE.read().expect("Could not acquire settings cache").settings.clone()
     }
     
     pub fn mods(&self) -> &[String] {

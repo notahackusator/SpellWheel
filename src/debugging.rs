@@ -169,15 +169,15 @@ lazy_static!(
 );
 
 pub fn add_to_screen_debug(add: String) {
-    SCREEN_DEBUG.lock().unwrap().push(add);
+    SCREEN_DEBUG.lock().expect("Couldn't get SCREEN_DEBUG").push(add);
 }
 
 pub fn commit_screen_debug() {
-    let mut screen_debug = SCREEN_DEBUG.lock().unwrap();
-    *COMMITTED_SCREEN_DEBUG.lock().unwrap() = screen_debug.clone();
+    let mut screen_debug = SCREEN_DEBUG.lock().expect("Couldn't get SCREEN_DEBUG");
+    *COMMITTED_SCREEN_DEBUG.lock().expect("Couldn't get SCREEN_DEBUG") = screen_debug.clone();
     screen_debug.clear();
 }
 
 pub fn read_committed_screen_debug() -> Vec<String> {
-    std::mem::take(&mut *COMMITTED_SCREEN_DEBUG.lock().unwrap())
+    std::mem::take(&mut *COMMITTED_SCREEN_DEBUG.lock().expect("Couldn't get COMMITTED_SCREEN_DEBUG"))
 }

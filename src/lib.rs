@@ -352,8 +352,8 @@ fn tick(_fd4: &FD4TaskData) {
             data.quick_items = equipped_quick_items;
         });
         let selected_wheel_type = selected_wheel_type();
-        if *PREV_WHEEL_TYPE.lock().unwrap() != selected_wheel_type {
-            *PREV_WHEEL_TYPE.lock().unwrap() = selected_wheel_type;
+        if *PREV_WHEEL_TYPE.lock().expect("Couldn't get PREV_WHEEL_TYPE") != selected_wheel_type {
+            *PREV_WHEEL_TYPE.lock().expect("Couldn't get PREV_WHEEL_TYPE") = selected_wheel_type;
             let is_wheel_open = selected_wheel_type != WheelType::None;
             menu_man.disable_mouse_cursor = !is_wheel_open;
             set_suppress_camera(is_wheel_open);

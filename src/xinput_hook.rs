@@ -17,7 +17,7 @@ lazy_static!(
 );
 
 pub fn get_xinput_gamepad_state() -> XINPUT_GAMEPAD {
-    HOOKED_STATE.read().unwrap().Gamepad
+    HOOKED_STATE.read().expect("Couldn't read HOOKED_STATE").Gamepad
 }
 
 pub fn set_suppress_camera(suppress_camera: bool) {
@@ -35,7 +35,7 @@ fn hooked_xinput_get_state(
     unsafe {
         let result = XInputHook.call(user_index, state);
 
-        *HOOKED_STATE.write().unwrap() = *state;
+        *HOOKED_STATE.write().expect("Couldn't write to HOOKED_STATE") = *state;
 
         let suppress_camera = SUPPRESS_CAMERA.load(Ordering::Relaxed);
         if is_debugging() {

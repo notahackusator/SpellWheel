@@ -12,11 +12,13 @@ use crate::settings::Settings;
 use crate::{guard, set_hwnd, set_selected_quick_item_index, set_selected_spell_index};
 use hudhook::{ImguiRenderLoop, RenderContext};
 use imgui::{Context, Ui, WindowFlags};
+use crate::settings::display_settings::DisplaySettings;
 
 pub struct ItemWheel {
     font: FontId,
     display_spells: Vec<DisplayItem>,
     display_quick_items: Vec<DisplayItem>,
+    display_settings: DisplaySettings,
     prev_type: WheelType,
     prev_spells: Vec<Item>,
     prev_quick_items: Vec<Item>,
@@ -28,6 +30,7 @@ impl ItemWheel {
             font: FontId::none(),
             display_spells: vec![],
             display_quick_items: vec![],
+            display_settings: DisplaySettings::new(),
             prev_type: WheelType::None,
             prev_spells: vec![],
             prev_quick_items: vec![],
@@ -164,6 +167,27 @@ impl ImguiRenderLoop for ItemWheel {
                     render_wheel(display_items, ui, &draw_list);
                 });
 
+            ui.window("Settings")
+                .position([0.0, 0.0], imgui::Condition::Always)
+                .size([sw, sh], imgui::Condition::Always)
+                .flags(
+                    WindowFlags::NO_TITLE_BAR |
+                    WindowFlags::NO_RESIZE |
+                    WindowFlags::NO_SCROLLBAR |
+                    WindowFlags::NO_SCROLL_WITH_MOUSE |
+                    WindowFlags::NO_BACKGROUND
+                )
+                .bg_alpha(0.0)
+                .no_decoration()
+                .no_inputs()
+                .movable(false)
+                .build(|| {
+                    self.display_settings.update();
+
+                    let draw_list = ui.get_window_draw_list();
+                    self.display_settings.draw(ui, &draw_list);
+                });
+
             self.prev_type = wheel_type;
             font.pop();
         );
@@ -188,10 +212,10 @@ impl ItemWheelData {
     }
 
     pub fn mutate<F: FnOnce(&mut Self)>(f: F) {
-        f(&mut ITEM_WHEEL_DATA.write().unwrap())
+        f(&mut ITEM_WHEEL_DATA.write().expect("Couldn't write to ITEM_WHEEL_DATA"))
     }
 
     pub fn get<F: FnOnce(&Self) -> T, T>(f: F) -> T {
-        f(&ITEM_WHEEL_DATA.read().unwrap())
+        f(&ITEM_WHEEL_DATA.read().expect("Couldn't read from ITEM_WHEEL_DATA"))
     }
 }

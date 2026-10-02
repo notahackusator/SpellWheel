@@ -97,7 +97,7 @@ impl FontManager {
 
     pub fn generate_sources() -> Vec<FontSource<'static>> {
         match FONT_MANAGER.get() {
-            Some(font_manager) => font_manager.read().unwrap().generate_sources_inner(),
+            Some(font_manager) => font_manager.read().expect("Couldn't read FONT_MANAGER").generate_sources_inner(),
             None => {
                 tracing::warn!("FontManager not initialized");
                 vec![

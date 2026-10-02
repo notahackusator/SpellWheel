@@ -127,14 +127,14 @@ pub fn set_gamepad_state(gamepad_state: Arc<Mutex<GamepadState>>) -> Result<(), 
 
 pub fn update_gamepad_state() {
     match GAMEPAD_STATE.get() {
-        Some(gamepad_state) => gamepad_state.lock().unwrap().update(),
+        Some(gamepad_state) => gamepad_state.lock().expect("Couldn't get GAMEPAD_STATE").update(),
         None => tracing::error!("update_gamepad_data called before GAMEPAD_STATE was initialized"),
     }
 }
 
 pub fn gamepad_state() -> GamepadState {
     match GAMEPAD_STATE.get() {
-        Some(gamepad_state) => gamepad_state.lock().unwrap().clone(),
+        Some(gamepad_state) => gamepad_state.lock().expect("Couldn't get GAMEPAD_STATW").clone(),
         None => {
             tracing::error!("gamepad_data called before GAMEPAD_STATE was initialized");
             GamepadState::new()
