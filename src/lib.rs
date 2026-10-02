@@ -45,6 +45,7 @@ use tracing_subscriber::fmt;
 #[cfg(feature = "extra-memory-slots-support")]
 use crate::expanded_memory_slots::SelectionResult;
 use crate::items::Item;
+use crate::keyboard::tick_listeners;
 use crate::settings::Settings;
 use crate::xinput_hook::{install_xinput_hook, remove_xinput_hook, set_suppress_camera};
 
@@ -250,6 +251,7 @@ fn tick(_fd4: &FD4TaskData) {
         }
         update_gamepad_state();
         try_init_rendering();
+        tick_listeners();
 
         let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);
         if selected_spell_index != -1 {

@@ -1,6 +1,8 @@
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use imgui::{DrawListMut, Ui};
+use windows::Win32::UI::Input::KeyboardAndMouse::{VK_F10, VK_LSHIFT};
+use crate::keyboard::{setup_listener, ListenerStatus, Listener};
 use crate::settings::SettingsContext;
 use crate::settings::visual_toml_parser::{check_errors, SettingsError};
 
@@ -21,6 +23,7 @@ impl SettingsErrorHolder {
 pub struct DisplaySettings {
     text: Arc<str>,
     error: Arc<RwLock<SettingsErrorHolder>>,
+    listener: ListenerStatus,
     shown: bool,
 }
 
@@ -28,15 +31,20 @@ impl DisplaySettings {
     pub fn new() -> Self {
         let text = SettingsContext::read_or_default().src.clone();
         let error = Arc::new(RwLock::new(SettingsErrorHolder::new()));
+        let listener = setup_listener(Listener::Released(Box::new([VK_LSHIFT.0 as i32, VK_F10.0 as i32])));
         let shown = false;
         Self {
             text,
             error,
+            listener,
             shown,
         }
     }
 
     pub fn update(&mut self) {
+        if self.listener.is_active() {
+            self.shown = !self.shown;
+        }
         if !self.shown {
             return;
         }
