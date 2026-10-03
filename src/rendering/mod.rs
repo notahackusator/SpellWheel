@@ -1,17 +1,17 @@
-use crate::rendering::wheel_hook::ItemWheelData;
+use crate::rendering::render_hook::ItemWheelData;
 use crate::hmodule;
 use hudhook::hooks::dx12::ImguiDx12Hooks;
 use hudhook::windows::Win32::Foundation::HINSTANCE;
 use hudhook::Hudhook;
 use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
-use wheel_hook::ItemWheel;
+use render_hook::RenderHook;
 
 pub mod display_item;
 pub mod wheel_renderer;
 pub mod debug_renderer;
 mod wrapped_text;
-pub mod wheel_hook;
+pub mod render_hook;
 
 static mut INIT: bool = false;
 pub fn try_init_rendering() {
@@ -23,7 +23,7 @@ pub fn try_init_rendering() {
     }
     tracing::info!("Init rendering called");
     if let Err(e) = Hudhook::builder()
-        .with::<ImguiDx12Hooks>(ItemWheel::new())
+        .with::<ImguiDx12Hooks>(RenderHook::new())
         .with_hmodule(HINSTANCE(hmodule() as _))
         .build()
         .apply()

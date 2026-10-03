@@ -4,7 +4,7 @@ use imgui::{DrawListMut, Ui};
 use windows::Win32::UI::Input::KeyboardAndMouse::{VK_F10, VK_LSHIFT};
 use crate::keyboard::{setup_listener, ListenerStatus, Listener};
 use crate::settings::SettingsContext;
-use crate::settings::visual_toml_parser::{check_errors, SettingsError};
+use crate::settings::visual_toml_parser::{check_errors, SettingsError, Span, parse_toml};
 
 pub struct SettingsErrorHolder {
     updated: Instant,
@@ -23,6 +23,7 @@ impl SettingsErrorHolder {
 pub struct DisplaySettings {
     text: Arc<str>,
     error: Arc<RwLock<SettingsErrorHolder>>,
+    toml_parse: Vec<Vec<Span>>,
     listener: ListenerStatus,
     shown: bool,
 }
@@ -31,11 +32,13 @@ impl DisplaySettings {
     pub fn new() -> Self {
         let text = SettingsContext::read_or_default().src.clone();
         let error = Arc::new(RwLock::new(SettingsErrorHolder::new()));
+        let toml_parse = parse_toml(&text);
         let listener = setup_listener(Listener::Released(Box::new([VK_LSHIFT.0 as i32, VK_F10.0 as i32])));
         let shown = false;
         Self {
             text,
             error,
+            toml_parse,
             listener,
             shown,
         }
@@ -63,35 +66,61 @@ impl DisplaySettings {
         }
         let lh = ui.text_line_height();
         let padding = 20.0;
-        let mut cursor = [padding; 2];
+        let origin = ui.window_pos();
 
-        let [w, h] = ui.calc_text_size(&self.text);
-        draw_list.add_rect([0.0; 2], [w + padding * 2.0, h + padding * 2.0], [0.2, 0.2, 0.2, 0.5])
-            .filled(true)
-            .build();
-        draw_list.add_rect([padding; 2], [w, h], [0.1, 0.1, 0.1, 0.5])
-            .filled(true)
-            .build();
+        let guard = self.error.read().expect("Couldn't acquire self.error");
+        let error = guard.error.as_ref();
 
-        for (i, line) in self.text.split("\n").into_iter().enumerate() {
-            ui.set_cursor_pos(cursor);
-            ui.text(line);
+        let lines: Vec<&str> = self.text.split('\n').collect();
 
-            if let Some(error) = &self.error.read().expect("Couldn't acquire self.error").error {
-                if i == error.line {
-                    let [lw, _] = ui.calc_text_size(line);
-                    let [ew, eh] = ui.calc_text_size(&error.msg);
-                    let c1 = [cursor[0] + lw, cursor[1]];
-                    let c2 = [c1[0] + ew, c1[1] + eh];
-                    ui.set_cursor_pos(c1);
-                    draw_list.add_rect(c1, c2, [1.0, 0.0, 0.0, 1.0])
-                        .filled(true)
-                        .build();
-                    ui.text_colored([1.0; 4], &error.msg);
+        let mut text_width = 0.0f32;
+        for (i, line) in lines.iter().enumerate() {
+            let mut lw = ui.calc_text_size(line)[0];
+
+            if let Some(error) = error {
+                if error.line == i {
+                    lw += ui.calc_text_size(&error.msg)[0];
                 }
             }
 
-            cursor[1] += lh;
+            text_width = text_width.max(lw);
+        }
+        let text_height = lines.len() as f32 * lh;
+
+        let inner_min = [origin[0] + padding, origin[1] + padding];
+        let inner_max = [inner_min[0] + text_width, inner_min[1] + text_height];
+        let outer_max = [inner_max[0] + padding, inner_max[1] + padding];
+
+        draw_list.add_rect(origin, outer_max, [0.2, 0.2, 0.2, 0.5]).filled(true).build();
+        draw_list.add_rect(inner_min, inner_max, [0.1, 0.1, 0.1, 0.5]).filled(true).build();
+
+        for (line_num, line) in lines.iter().enumerate() {
+            let pos = [inner_min[0], inner_min[1] + line_num as f32 * lh];
+
+            // Render line text
+            if let Some(spans) = self.toml_parse.get(line_num) {
+                for sp in spans {
+                    let (Some(prefix), Some(text)) = (line.get(..sp.start), line.get(sp.start..sp.end)) else {
+                        continue;
+                    };
+                    let x = pos[0] + ui.calc_text_size(prefix)[0];
+                    draw_list.add_text([x, pos[1]], sp.kind.color(), text);
+                }
+            }
+
+            // Render line error
+            if let Some(error) = error {
+                if error.line == line_num {
+                    let lw = ui.calc_text_size(line)[0];
+                    let [ew, eh] = ui.calc_text_size(&error.msg);
+                    let c1 = [pos[0] + lw, pos[1]];
+                    draw_list
+                        .add_rect(c1, [c1[0] + ew, c1[1] + eh], [1.0, 0.0, 0.0, 1.0])
+                        .filled(true)
+                        .build();
+                    draw_list.add_text(c1, [1.0; 4], &error.msg);
+                }
+            }
         }
     }
 }

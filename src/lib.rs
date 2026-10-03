@@ -34,7 +34,7 @@ use hudhook::hooks::dx12::get_hwnd;
 use hudhook::windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 use io::selected_wheel_type;
 use lazy_static::lazy_static;
-use rendering::wheel_hook::ItemWheelData;
+use rendering::render_hook::ItemWheelData;
 use rendering::wheel_renderer::WheelType;
 use std::fs::File;
 use std::mem;

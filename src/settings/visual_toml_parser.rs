@@ -1,7 +1,7 @@
 use crate::settings::Settings;
 
 #[derive(Clone, Copy, PartialEq)]
-enum Tok {
+pub enum Tok {
     Comment,
     Table,
     Key,
@@ -12,20 +12,32 @@ enum Tok {
     Plain,
 }
 
-struct Span {
-    start: usize,
-    end: usize,
-    kind: Tok,
+impl Tok {
+    pub const fn color(&self) -> [f32; 4] {
+        match self {
+            Tok::Comment => [0.474510, 0.490196, 0.486275, 1.0],
+            Tok::Key => [0.752941, 0.384314, 0.207843, 1.0],
+            Tok::Str => [0.411765, 0.666667, 0.435294, 1.0],
+            Tok::Num => [0.152941, 0.584314, 0.717647, 1.0],
+            Tok::Bool | Tok::Punct | Tok::Plain | Tok::Table => [0.737255, 0.745098, 0.768627, 1.0],
+        }
+    }
+}
+
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+    pub kind: Tok,
 }
 
 #[derive(Clone, Copy, PartialEq, Default)]
-enum St {
+pub enum St {
     #[default] Normal,
     MlBasic,
     MlLit,
 }
 
-fn find_close(s: &str, from: usize, delim: &str, escapes: bool) -> Option<usize> {
+pub fn find_close(s: &str, from: usize, delim: &str, escapes: bool) -> Option<usize> {
     let b = s.as_bytes();
     let mut i = from;
     while i < b.len() {
@@ -36,7 +48,7 @@ fn find_close(s: &str, from: usize, delim: &str, escapes: bool) -> Option<usize>
     None
 }
 
-fn lex_line(line: &str, st: &mut St, out: &mut Vec<Span>) {
+pub fn lex_line(line: &str, st: &mut St, out: &mut Vec<Span>) {
     let b = line.as_bytes();
     let mut i = 0;
 
@@ -101,6 +113,18 @@ fn lex_line(line: &str, st: &mut St, out: &mut Vec<Span>) {
             }
         }
     }
+}
+
+// consider checking if the previous src was identical to this one for performance.
+pub fn parse_toml(src: &str) -> Vec<Vec<Span>> {
+    let mut st = St::Normal;
+    src.split('\n')
+        .map(|line| {
+            let mut spans = Vec::new();
+            lex_line(line, &mut st, &mut spans);
+            spans
+        })
+        .collect()
 }
 
 pub fn check_errors(src: &str) -> Option<SettingsError> {

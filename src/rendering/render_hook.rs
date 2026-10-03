@@ -14,7 +14,7 @@ use hudhook::{ImguiRenderLoop, RenderContext};
 use imgui::{Context, Ui, WindowFlags};
 use crate::settings::display_settings::DisplaySettings;
 
-pub struct ItemWheel {
+pub struct RenderHook {
     font: FontId,
     display_spells: Vec<DisplayItem>,
     display_quick_items: Vec<DisplayItem>,
@@ -24,7 +24,7 @@ pub struct ItemWheel {
     prev_quick_items: Vec<Item>,
 }
 
-impl ItemWheel {
+impl RenderHook {
     pub fn new() -> Self {
         Self {
             font: FontId::none(),
@@ -58,14 +58,14 @@ impl ItemWheel {
     }
 }
 
-impl ItemWheel {
+impl RenderHook {
     fn try_resize_font(&mut self, ctx: &mut Context) {
         let [ww, wh] = get_window_size();
         ctx.io_mut().font_global_scale = Settings::read_or_default().font_scale_multiplier * ww.min(wh) / DEFAULT_SCREEN_MIN;
     }
 }
 
-impl ImguiRenderLoop for ItemWheel {
+impl ImguiRenderLoop for RenderHook {
     fn initialize<'a>(&'a mut self, ctx: &mut Context, render_context: &'a mut dyn RenderContext) {
         guard!(
             tracing::info!("Initializing item wheel UI");
@@ -178,8 +178,6 @@ impl ImguiRenderLoop for ItemWheel {
                     WindowFlags::NO_BACKGROUND
                 )
                 .bg_alpha(0.0)
-                .no_decoration()
-                .no_inputs()
                 .movable(false)
                 .build(|| {
                     self.display_settings.update();
