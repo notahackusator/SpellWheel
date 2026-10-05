@@ -46,6 +46,7 @@ use tracing_subscriber::fmt;
 use crate::expanded_memory_slots::SelectionResult;
 use crate::items::Item;
 use crate::keyboard::tick_listeners;
+use crate::settings::display_settings::display_settings_open;
 use crate::settings::Settings;
 use crate::xinput_hook::{install_xinput_hook, remove_xinput_hook, set_suppress_camera};
 
@@ -202,6 +203,7 @@ pub fn set_in_menus(world_chr_man_dbg: &WorldChrManDbg, fe_man: &CSFeManImp) {
 
 lazy_static!(
     static ref PREV_WHEEL_TYPE: Arc<Mutex<WheelType>> = Arc::new(Mutex::new(WheelType::None));
+    static ref PREV_DISPLAY_SETTINGS_OPEN: AtomicBool = AtomicBool::new(false);
 );
 fn tick(_fd4: &FD4TaskData) {
     guard!(
@@ -354,12 +356,18 @@ fn tick(_fd4: &FD4TaskData) {
             data.quick_items = equipped_quick_items;
         });
         let selected_wheel_type = selected_wheel_type();
-        if *PREV_WHEEL_TYPE.lock().expect("Couldn't get PREV_WHEEL_TYPE") != selected_wheel_type {
-            *PREV_WHEEL_TYPE.lock().expect("Couldn't get PREV_WHEEL_TYPE") = selected_wheel_type;
-            let is_wheel_open = selected_wheel_type != WheelType::None;
-            menu_man.disable_mouse_cursor = !is_wheel_open;
-            set_suppress_camera(is_wheel_open);
+        let display_settings_open = display_settings_open();
+
+        let wheel_changed = *PREV_WHEEL_TYPE.lock().expect("Couldn't get PREV_WHEEL_TYPE") != selected_wheel_type;
+        let display_settings_changed = PREV_DISPLAY_SETTINGS_OPEN.load(Ordering::Relaxed) != display_settings_open;
+
+        if wheel_changed || display_settings_changed {
+            let is_ui_open = (selected_wheel_type != WheelType::None) || display_settings_open;
+            menu_man.disable_mouse_cursor = !is_ui_open;
+            set_suppress_camera(is_ui_open);
         }
+        *PREV_WHEEL_TYPE.lock().expect("Couldn't get PREV_WHEEL_TYPE") = selected_wheel_type;
+        PREV_DISPLAY_SETTINGS_OPEN.store(display_settings_open, Ordering::Relaxed);
         ItemWheelData::mutate(|data| {
             data.wheel_type = selected_wheel_type;
         });

@@ -1,10 +1,20 @@
 use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use imgui::{DrawListMut, Ui};
+use lazy_static::lazy_static;
 use windows::Win32::UI::Input::KeyboardAndMouse::{VK_F10, VK_LSHIFT};
 use crate::keyboard::{setup_listener, ListenerStatus, Listener};
 use crate::settings::SettingsContext;
 use crate::settings::visual_toml_parser::{check_errors, SettingsError, Span, parse_toml};
+
+lazy_static!(
+    static ref IS_OPEN: AtomicBool = AtomicBool::new(false);
+);
+
+pub fn display_settings_open() -> bool {
+    IS_OPEN.load(Ordering::Relaxed)
+}
 
 pub struct SettingsErrorHolder {
     updated: Instant,
@@ -21,16 +31,16 @@ impl SettingsErrorHolder {
 }
 
 pub struct DisplaySettings {
-    text: Arc<str>,
-    error: Arc<RwLock<SettingsErrorHolder>>,
-    toml_parse: Vec<Vec<Span>>,
-    listener: ListenerStatus,
-    shown: bool,
+    pub text: String,
+    pub error: Arc<RwLock<SettingsErrorHolder>>,
+    pub toml_parse: Vec<Vec<Span>>,
+    pub listener: ListenerStatus,
+    pub shown: bool,
 }
 
 impl DisplaySettings {
     pub fn new() -> Self {
-        let text = SettingsContext::read_or_default().src.clone();
+        let text = SettingsContext::read_or_default().src.replace("\r", "");
         let error = Arc::new(RwLock::new(SettingsErrorHolder::new()));
         let toml_parse = parse_toml(&text);
         let listener = setup_listener(Listener::Released(Box::new([VK_LSHIFT.0 as i32, VK_F10.0 as i32])));
@@ -48,10 +58,10 @@ impl DisplaySettings {
         if self.listener.is_active() {
             self.shown = !self.shown;
         }
+        IS_OPEN.store(self.shown, Ordering::Relaxed);
         if !self.shown {
             return;
         }
-        self.text = SettingsContext::read_or_default().src.clone();
         if self.error.read().expect("Couldn't acquire self.error").updated.elapsed() >= Duration::from_millis(250) {
             // consider using another thread if this becomes too expensive
             let mut err = self.error.write().expect("Couldn't acquire self.error");
@@ -99,12 +109,12 @@ impl DisplaySettings {
 
             // Render line text
             if let Some(spans) = self.toml_parse.get(line_num) {
-                for sp in spans {
-                    let (Some(prefix), Some(text)) = (line.get(..sp.start), line.get(sp.start..sp.end)) else {
+                for span in spans {
+                    let (Some(prefix), Some(text)) = (line.get(..span.start), line.get(span.start..span.end)) else {
                         continue;
                     };
                     let x = pos[0] + ui.calc_text_size(prefix)[0];
-                    draw_list.add_text([x, pos[1]], sp.kind.color(), text);
+                    draw_list.add_text([x, pos[1]], span.kind.color(), text);
                 }
             }
 

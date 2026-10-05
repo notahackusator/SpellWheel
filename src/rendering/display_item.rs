@@ -22,8 +22,7 @@ pub struct Positions {
 }
 
 impl Positions {
-    pub fn new(name: &WrappedText, x: f32, y: f32) -> Self {
-        let scale = name.scale;
+    pub fn new(name: &WrappedText, x: f32, y: f32, scale: f32) -> Self {
         let settings = Settings::read_or_default();
         let img_dim = scale * DisplayItem::img_dim();
         let [text_w, text_h] = match settings.item_names() {
@@ -84,6 +83,7 @@ impl Positions {
 pub struct DisplayItem {
     pub index: i32,
     pub icon: Option<AtlasIcon>,
+    pub scale: f32,
     pub name: WrappedText,
     pub is_highlighted: bool,
     pub highlight_time: f32,
@@ -143,6 +143,7 @@ impl DisplayItem {
 
                 let index = item.index();
                 let icon = IconManager::get_item(item);
+                let scale = 1.0;
                 let is_highlighted = false;
                 let highlight_time = 0.0;
                 let last_tick = Instant::now();
@@ -151,6 +152,7 @@ impl DisplayItem {
                     index,
                     icon,
                     name,
+                    scale,
                     is_highlighted,
                     highlight_time,
                     angle,
@@ -185,7 +187,12 @@ impl DisplayItem {
         } else {
             0.0
         };
-        self.name.scale = 1.0 + scale_add;
+        self.scale = 1.0 + scale_add;
+        if let ItemNames::Center = settings.item_names() {
+            self.name.scale = 1.0;
+        } else {
+            self.name.scale = self.scale;
+        }
 
         self.last_tick = tick;
     }
@@ -193,7 +200,7 @@ impl DisplayItem {
     pub fn draw(&self, settings: &Settings, ww: f32, wh: f32, img_dim: f32, num_items: usize, ui: &Ui, draw_list: &DrawListMut) {
         let [cx, cy] = [ww / 2.0, wh / 2.0];
         
-        let positions = Positions::new(&self.name, self.pos[0], self.pos[1]);
+        let positions = Positions::new(&self.name, self.pos[0], self.pos[1], self.scale);
 
         let (
             Some(AtlasIcon { texture_id, rect, primary_color, .. }),

@@ -114,6 +114,11 @@ pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: 
                 return;
             };
 
+            let no_items_selected = !items.iter().any(|di| di.is_highlighted);
+            if no_items_selected && !settings.using_controller {
+                return;
+            }
+
             let thickness = ww.min(wh) / 200.0;
             let radius = settings.radius_multiplier * ww.min(wh) - img_dim - thickness * 2.0;
 
