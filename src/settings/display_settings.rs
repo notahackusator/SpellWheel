@@ -1,12 +1,13 @@
-use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use crate::keyboard::listener::setup_listener;
+use crate::keyboard::listener::{Listener, ListenerStatus};
+use crate::settings::SettingsContext;
+use crate::settings::visual_toml_parser::{SettingsError, Span, check_errors, parse_toml};
 use imgui::{DrawListMut, Ui};
 use lazy_static::lazy_static;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 use windows::Win32::UI::Input::KeyboardAndMouse::{VK_F10, VK_LSHIFT};
-use crate::keyboard::{setup_listener, ListenerStatus, Listener};
-use crate::settings::SettingsContext;
-use crate::settings::visual_toml_parser::{check_errors, SettingsError, Span, parse_toml};
 
 lazy_static!(
     static ref IS_OPEN: AtomicBool = AtomicBool::new(false);
@@ -43,7 +44,11 @@ impl DisplaySettings {
         let text = SettingsContext::read_or_default().src.replace("\r", "");
         let error = Arc::new(RwLock::new(SettingsErrorHolder::new()));
         let toml_parse = parse_toml(&text);
-        let listener = setup_listener(Listener::Released(Box::new([VK_LSHIFT.0 as i32, VK_F10.0 as i32])));
+        let listener = setup_listener(
+            Listener::Released {
+                keys: Box::new([VK_LSHIFT.0 as i32, VK_F10.0 as i32]),
+            }
+        );
         let shown = false;
         Self {
             text,

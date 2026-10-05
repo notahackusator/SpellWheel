@@ -27,7 +27,7 @@ use crate::glyphs::font_manager::FontManager;
 use crate::icons::icon_manager::IconManager;
 use crate::rendering::{remove_hudhook, try_init_rendering};
 use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository, WorldChrManDbg};
-use eldenring::fd4::FD4TaskData;
+use eldenring::fd4::{FD4PadManager, FD4TaskData};
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use hudhook::hooks::dx12::get_hwnd;
@@ -45,10 +45,11 @@ use tracing_subscriber::fmt;
 #[cfg(feature = "extra-memory-slots-support")]
 use crate::expanded_memory_slots::SelectionResult;
 use crate::items::Item;
-use crate::keyboard::tick_listeners;
-use crate::settings::display_settings::display_settings_open;
 use crate::settings::Settings;
+use crate::settings::display_settings::display_settings_open;
 use crate::xinput_hook::{install_xinput_hook, remove_xinput_hook, set_suppress_camera};
+use keyboard::listener::tick_listeners;
+use crate::keyboard::hook::install_keyboard_hooks;
 
 static HMODULE: OnceLock<usize> = OnceLock::new();
 
@@ -251,6 +252,7 @@ fn tick(_fd4: &FD4TaskData) {
         if settings.await_xinput_hook {
             install_xinput_hook();
         }
+        install_keyboard_hooks();
         update_gamepad_state();
         try_init_rendering();
         tick_listeners();
