@@ -2,11 +2,13 @@ use crate::keyboard::listener::setup_listener;
 use crate::keyboard::listener::{Listener, ListenerStatus};
 use crate::settings::SettingsContext;
 use crate::settings::visual_toml_parser::{SettingsError, Span, check_errors, parse_toml};
-use imgui::{DrawListMut, Ui};
+use imgui::{ColorStackToken, DrawListMut, InputTextCallbackHandler, InputTextMultilineCallback, StyleColor, StyleStackToken, StyleVar, TextCallbackData, Ui};
 use lazy_static::lazy_static;
+use std::cell::RefCell;
+use std::ops::Range;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use windows::Win32::UI::Input::KeyboardAndMouse::{VK_F10, VK_LSHIFT};
 
 lazy_static!(
@@ -15,6 +17,46 @@ lazy_static!(
 
 pub fn display_settings_open() -> bool {
     IS_OPEN.load(Ordering::Relaxed)
+}
+
+#[derive(Clone, Debug)]
+pub struct EditCallback {
+    cursor: Rc<RefCell<usize>>,
+    selection: Rc<RefCell<Range<usize>>>,
+    scroll: Rc<RefCell<f32>>,
+}
+
+impl EditCallback {
+    pub fn new() -> Self {
+        Self {
+            cursor: Rc::new(RefCell::new(0)),
+            selection: Rc::new(RefCell::new(0..0)),
+            scroll: Rc::new(RefCell::new(0.0)),
+        }
+    }
+}
+
+impl InputTextCallbackHandler for EditCallback {
+    fn on_always(&mut self, data: TextCallbackData) {
+        self.cursor.replace(data.cursor_pos());
+        self.selection.replace(data.selection());
+    }
+}
+
+pub trait GenericPop {
+    fn generic_pop(self: Box<Self>);
+}
+
+impl GenericPop for StyleStackToken<'_> {
+    fn generic_pop(self: Box<Self>) {
+        self.pop()
+    }
+}
+
+impl GenericPop for ColorStackToken<'_> {
+    fn generic_pop(self: Box<Self>) {
+        self.pop()
+    }
 }
 
 pub struct SettingsErrorHolder {
@@ -33,7 +75,7 @@ impl SettingsErrorHolder {
 
 pub struct DisplaySettings {
     pub text: String,
-    pub error: Arc<RwLock<SettingsErrorHolder>>,
+    pub error: Option<SettingsError>,
     pub toml_parse: Vec<Vec<Span>>,
     pub listener: ListenerStatus,
     pub shown: bool,
@@ -42,7 +84,7 @@ pub struct DisplaySettings {
 impl DisplaySettings {
     pub fn new() -> Self {
         let text = SettingsContext::read_or_default().src.replace("\r", "");
-        let error = Arc::new(RwLock::new(SettingsErrorHolder::new()));
+        let error = None;
         let toml_parse = parse_toml(&text);
         let listener = setup_listener(
             Listener::Released {
@@ -67,24 +109,70 @@ impl DisplaySettings {
         if !self.shown {
             return;
         }
-        if self.error.read().expect("Couldn't acquire self.error").updated.elapsed() >= Duration::from_millis(250) {
-            // consider using another thread if this becomes too expensive
-            let mut err = self.error.write().expect("Couldn't acquire self.error");
-            err.updated = Instant::now();
-            err.error = check_errors(&self.text);
-        }
     }
 
-    pub fn draw(&self, ui: &Ui, draw_list: &DrawListMut) {
+    pub fn update_toml(&mut self) {
+        self.toml_parse = parse_toml(&self.text);
+        self.error = check_errors(&self.text);
+    }
+
+    pub fn edit(&mut self, ui: &Ui, padding: f32) -> EditCallback {
+        let mut callback = EditCallback::new();
+        let lh = ui.text_line_height();
+
+        let (mut n_lines, mut max_w) = (0, 0.0f32);
+        for l in self.text.split('\n') {
+            n_lines += 1;
+            max_w = max_w.max(ui.calc_text_size(l)[0]);
+        }
+
+        let [ww, wh] = ui.window_size();
+        let child_size = [ww - padding * 2.0, wh - padding * 2.0];
+
+        let _wp = ui.push_style_var(StyleVar::WindowPadding([0.0; 2]));
+        ui.set_cursor_pos([padding, padding]);
+
+        ui.child_window("settings scroll")
+            .size(child_size)
+            .horizontal_scrollbar(true)
+            .build(|| {
+                let size = [
+                    (max_w + lh * 4.0).max(child_size[0]),
+                    ((n_lines as f32 + 2.0) * lh).max(child_size[1]),
+                ];
+
+                let styles: [Box<dyn GenericPop>; _] = [
+                    Box::new(ui.push_style_var(StyleVar::FramePadding([0.0; 2]))),
+                    Box::new(ui.push_style_color(StyleColor::Text, [0.; 4])),
+                    Box::new(ui.push_style_color(StyleColor::FrameBg, [0.; 4])),
+                ];
+
+                let changed = ui
+                    .input_text_multiline("settings editor", &mut self.text, size)
+                    .callback(InputTextMultilineCallback::ALWAYS, callback.clone())
+                    .build();
+                if changed {
+                    self.update_toml();
+                }
+                callback.scroll.replace(ui.scroll_y());
+                for style in styles {
+                    style.generic_pop();
+                }
+            });
+
+        callback
+    }
+    pub fn draw(&mut self, ui: &Ui, draw_list: &DrawListMut) {
         if !self.shown {
             return;
         }
         let lh = ui.text_line_height();
         let padding = 20.0;
-        let origin = ui.window_pos();
+        let cb = self.edit(ui, padding);
 
-        let guard = self.error.read().expect("Couldn't acquire self.error");
-        let error = guard.error.as_ref();
+        let mut origin = ui.window_pos();
+        origin[1] += cb.scroll.take();
+        let mut caret_index = cb.cursor.take() as isize;
 
         let lines: Vec<&str> = self.text.split('\n').collect();
 
@@ -92,7 +180,7 @@ impl DisplaySettings {
         for (i, line) in lines.iter().enumerate() {
             let mut lw = ui.calc_text_size(line)[0];
 
-            if let Some(error) = error {
+            if let Some(error) = &self.error {
                 if error.line == i {
                     lw += ui.calc_text_size(&error.msg)[0];
                 }
@@ -124,7 +212,7 @@ impl DisplaySettings {
             }
 
             // Render line error
-            if let Some(error) = error {
+            if let Some(error) = &self.error {
                 if error.line == line_num {
                     let lw = ui.calc_text_size(line)[0];
                     let [ew, eh] = ui.calc_text_size(&error.msg);
@@ -136,6 +224,18 @@ impl DisplaySettings {
                     draw_list.add_text(c1, [1.0; 4], &error.msg);
                 }
             }
+
+            let line_len_with_newline = line.len() as isize + 1;
+            if 0 <= caret_index && caret_index < line_len_with_newline {
+                let caret_pos = ui.calc_text_size(&line[..caret_index as usize]);
+                let c1 = [pos[0] + caret_pos[0], pos[1]];
+                let c2 = [c1[0] + 4.0, pos[1] + caret_pos[1]];
+                draw_list.add_rect(c1, c2, [1.0; 4])
+                    .filled(true)
+                    .build();
+            }
+
+            caret_index -= line_len_with_newline;
         }
     }
 }
