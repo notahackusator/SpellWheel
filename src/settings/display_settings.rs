@@ -134,7 +134,6 @@ impl DisplaySettings {
 
         ui.child_window("settings scroll")
             .size(child_size)
-            .horizontal_scrollbar(true)
             .build(|| {
                 let size = [
                     (max_w + lh * 4.0).max(child_size[0]),
@@ -170,12 +169,14 @@ impl DisplaySettings {
         let padding = 20.0;
         let cb = self.edit(ui, padding);
 
-        let mut origin = ui.window_pos();
-        origin[1] += cb.scroll.take();
+        let origin = ui.window_pos();
+        let mut scroll_origin = origin;
+        scroll_origin[1] -= cb.scroll.take();
         let mut caret_index = cb.cursor.take() as isize;
 
         let lines: Vec<&str> = self.text.split('\n').collect();
 
+        // Overall text dimensions
         let mut text_width = 0.0f32;
         for (i, line) in lines.iter().enumerate() {
             let mut lw = ui.calc_text_size(line)[0];
@@ -190,52 +191,73 @@ impl DisplaySettings {
         }
         let text_height = lines.len() as f32 * lh;
 
-        let inner_min = [origin[0] + padding, origin[1] + padding];
-        let inner_max = [inner_min[0] + text_width, inner_min[1] + text_height];
-        let outer_max = [inner_max[0] + padding, inner_max[1] + padding];
+        let inner_min = [
+            scroll_origin[0] + padding,
+            scroll_origin[1] + padding
+        ];
+        let inner_max = [
+            inner_min[0] + text_width,
+            inner_min[1] + text_height
+        ];
+        let outer_min = [
+            origin[0],
+            origin[1]
+        ];
+        let outer_max = [
+            outer_min[0] + text_width + padding * 2.0,
+            outer_min[1] + text_height + padding * 2.0
+        ];
 
-        draw_list.add_rect(origin, outer_max, [0.2, 0.2, 0.2, 0.5]).filled(true).build();
+        let screen_size = ui.window_size();
+        let screen_min = [padding, padding];
+        let screen_max = [screen_size[0] - padding, screen_size[1] - padding];
+
+        // Backgrounds
+        draw_list.add_rect(outer_min, outer_max, [0.2, 0.2, 0.2, 0.5]).filled(true).build();
         draw_list.add_rect(inner_min, inner_max, [0.1, 0.1, 0.1, 0.5]).filled(true).build();
 
-        for (line_num, line) in lines.iter().enumerate() {
-            let pos = [inner_min[0], inner_min[1] + line_num as f32 * lh];
+        draw_list.with_clip_rect(screen_min, screen_max, || {
+            for (line_num, line) in lines.iter().enumerate() {
+                let pos = [inner_min[0], inner_min[1] + line_num as f32 * lh];
 
-            // Render line text
-            if let Some(spans) = self.toml_parse.get(line_num) {
-                for span in spans {
-                    let (Some(prefix), Some(text)) = (line.get(..span.start), line.get(span.start..span.end)) else {
-                        continue;
-                    };
-                    let x = pos[0] + ui.calc_text_size(prefix)[0];
-                    draw_list.add_text([x, pos[1]], span.kind.color(), text);
+                // Render line text
+                if let Some(spans) = self.toml_parse.get(line_num) {
+                    for span in spans {
+                        let (Some(prefix), Some(text)) = (line.get(..span.start), line.get(span.start..span.end)) else {
+                            continue;
+                        };
+                        let x = pos[0] + ui.calc_text_size(prefix)[0];
+                        draw_list.add_text([x, pos[1]], span.kind.color(), text);
+                    }
                 }
-            }
 
-            // Render line error
-            if let Some(error) = &self.error {
-                if error.line == line_num {
-                    let lw = ui.calc_text_size(line)[0];
-                    let [ew, eh] = ui.calc_text_size(&error.msg);
-                    let c1 = [pos[0] + lw, pos[1]];
-                    draw_list
-                        .add_rect(c1, [c1[0] + ew, c1[1] + eh], [1.0, 0.0, 0.0, 1.0])
+                // Render line error
+                if let Some(error) = &self.error {
+                    if error.line == line_num {
+                        let lw = ui.calc_text_size(line)[0];
+                        let [ew, eh] = ui.calc_text_size(&error.msg);
+                        let c1 = [pos[0] + lw, pos[1]];
+                        draw_list
+                            .add_rect(c1, [c1[0] + ew, c1[1] + eh], [1.0, 0.0, 0.0, 1.0])
+                            .filled(true)
+                            .build();
+                        draw_list.add_text(c1, [1.0; 4], &error.msg);
+                    }
+                }
+
+                // Render caret
+                let line_len_with_newline = line.len() as isize + 1;
+                if 0 <= caret_index && caret_index < line_len_with_newline {
+                    let caret_pos = ui.calc_text_size(&line[..caret_index as usize]);
+                    let c1 = [pos[0] + caret_pos[0], pos[1]];
+                    let c2 = [c1[0] + 4.0, pos[1] + caret_pos[1]];
+                    draw_list.add_rect(c1, c2, [1.0; 4])
                         .filled(true)
                         .build();
-                    draw_list.add_text(c1, [1.0; 4], &error.msg);
                 }
-            }
 
-            let line_len_with_newline = line.len() as isize + 1;
-            if 0 <= caret_index && caret_index < line_len_with_newline {
-                let caret_pos = ui.calc_text_size(&line[..caret_index as usize]);
-                let c1 = [pos[0] + caret_pos[0], pos[1]];
-                let c2 = [c1[0] + 4.0, pos[1] + caret_pos[1]];
-                draw_list.add_rect(c1, c2, [1.0; 4])
-                    .filled(true)
-                    .build();
+                caret_index -= line_len_with_newline;
             }
-
-            caret_index -= line_len_with_newline;
-        }
+        });
     }
 }
