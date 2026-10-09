@@ -116,7 +116,7 @@ impl DisplaySettings {
         self.error = check_errors(&self.text);
     }
 
-    pub fn edit(&mut self, ui: &Ui, padding: f32) -> EditCallback {
+    pub fn edit(&mut self, ui: &Ui, pos: [f32; 2], size: [f32; 2]) -> EditCallback {
         let mut callback = EditCallback::new();
         let lh = ui.text_line_height();
 
@@ -126,18 +126,15 @@ impl DisplaySettings {
             max_w = max_w.max(ui.calc_text_size(l)[0]);
         }
 
-        let [ww, wh] = ui.window_size();
-        let child_size = [ww - padding * 2.0, wh - padding * 2.0];
-
         let _wp = ui.push_style_var(StyleVar::WindowPadding([0.0; 2]));
-        ui.set_cursor_pos([padding, padding]);
+        ui.set_cursor_pos(pos);
 
         ui.child_window("settings scroll")
-            .size(child_size)
+            .size(size)
             .build(|| {
                 let size = [
-                    (max_w + lh * 4.0).max(child_size[0]),
-                    ((n_lines as f32 + 2.0) * lh).max(child_size[1]),
+                    (max_w + lh * 4.0).max(size[0]),
+                    ((n_lines as f32 + 4.0) * lh).max(size[1]),
                 ];
 
                 let styles: [Box<dyn GenericPop>; _] = [
@@ -166,10 +163,29 @@ impl DisplaySettings {
             return;
         }
         let lh = ui.text_line_height();
-        let padding = 20.0;
-        let cb = self.edit(ui, padding);
+        let padding_x = 20.0;
+        let padding_y = 20.0;
+        let element_margin = 20.0;
+        let element_padding = 5.0;
 
         let origin = ui.window_pos();
+        let screen_size = ui.window_size();
+
+        let [save_button_min, save_button_max, save_button_text_pos] = Self::calc_button_sizes(
+            ui, [origin[0] + padding_x, origin[1] + padding_y], "Save", element_padding
+        );
+        let [reload_button_min, reload_button_max, reload_button_text_pos] = Self::calc_button_sizes(
+            ui, [save_button_max[0] + element_margin, save_button_min[1]], "Reload icons", element_padding
+        );
+        let screen_min = [origin[0] + padding_x, save_button_max[1] + element_margin];
+        let screen_max = [screen_size[0] - padding_x, screen_size[1] - padding_y];
+
+        let cb = self.edit(
+            ui,
+            [origin[0] + padding_x, save_button_max[1] + element_margin],
+            [screen_size[0] - padding_x * 2.0, screen_size[1] - padding_y * 2.0]
+        );
+
         let mut scroll_origin = origin;
         scroll_origin[1] -= cb.scroll.take();
         let mut caret_index = cb.cursor.take() as isize;
@@ -192,8 +208,8 @@ impl DisplaySettings {
         let text_height = lines.len() as f32 * lh;
 
         let inner_min = [
-            scroll_origin[0] + padding,
-            scroll_origin[1] + padding
+            scroll_origin[0] + padding_x,
+            scroll_origin[1] + save_button_max[1] + element_margin
         ];
         let inner_max = [
             inner_min[0] + text_width,
@@ -204,17 +220,19 @@ impl DisplaySettings {
             origin[1]
         ];
         let outer_max = [
-            outer_min[0] + text_width + padding * 2.0,
-            outer_min[1] + text_height + padding * 2.0
+            outer_min[0] + text_width + padding_x * 2.0,
+            outer_min[1] + text_height + padding_y * 2.0
         ];
-
-        let screen_size = ui.window_size();
-        let screen_min = [padding, padding];
-        let screen_max = [screen_size[0] - padding, screen_size[1] - padding];
 
         // Backgrounds
         draw_list.add_rect(outer_min, outer_max, [0.2, 0.2, 0.2, 0.5]).filled(true).build();
         draw_list.add_rect(inner_min, inner_max, [0.1, 0.1, 0.1, 0.5]).filled(true).build();
+
+        // Buttons
+        draw_list.add_rect(save_button_min, save_button_max, [0.3, 0.3, 0.3, 1.0]).filled(true).build();
+        draw_list.add_text(save_button_text_pos, 0xFF_FF_FF_FF, "Save");
+        draw_list.add_rect(reload_button_min, reload_button_max, [0.3, 0.3, 0.3, 1.0]).filled(true).build();
+        draw_list.add_text(reload_button_text_pos, 0xFF_FF_FF_FF, "Reload icons");
 
         draw_list.with_clip_rect(screen_min, screen_max, || {
             for (line_num, line) in lines.iter().enumerate() {
@@ -259,5 +277,18 @@ impl DisplaySettings {
                 caret_index -= line_len_with_newline;
             }
         });
+    }
+
+    fn calc_button_sizes(ui: &Ui, start_pos: [f32; 2], text: &str, element_padding: f32) -> [[f32; 2]; 3] {
+        let text_size = ui.calc_text_size(text);
+        let button_max = [
+            start_pos[0] + text_size[0] + element_padding * 2.0,
+            start_pos[1] + text_size[1] + element_padding * 2.0
+        ];
+        let button_text_pos = [
+            start_pos[0] + element_padding,
+            start_pos[1] + element_padding
+        ];
+        [start_pos, button_max, button_text_pos]
     }
 }
