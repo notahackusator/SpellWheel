@@ -228,9 +228,8 @@ impl DisplaySettings {
             outer_min[1] + text_height + padding_y * 2.0
         ];
 
-        // Backgrounds
+        // Background
         draw_list.add_rect(outer_min, outer_max, [0.2, 0.2, 0.2, 0.5]).filled(true).build();
-        draw_list.add_rect(inner_min, inner_max, [0.1, 0.1, 0.1, 0.5]).filled(true).build();
 
         // Buttons
         if Self::button(ui, draw_list, "##save", save_button_min,
@@ -248,6 +247,7 @@ impl DisplaySettings {
         }
 
         draw_list.with_clip_rect(screen_min, screen_max, || {
+            draw_list.add_rect(inner_min, inner_max, [0.1, 0.1, 0.1, 0.5]).filled(true).build();
             for (line_num, line) in lines.iter().enumerate() {
                 let pos = [inner_min[0], inner_min[1] + line_num as f32 * lh];
 

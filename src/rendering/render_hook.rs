@@ -86,6 +86,8 @@ impl ImguiRenderLoop for RenderHook {
         guard!(
             self.try_resize_font(ctx);
             if self.display_settings.should_reload {
+                self.prev_spells = vec![];
+                self.prev_quick_items = vec![];
                 self.display_settings.should_reload = false;
                 IconManager::load(render_context);
                 tracing::info!("IconManager reloaded");
