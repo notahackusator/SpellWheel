@@ -10,6 +10,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 use windows::Win32::UI::Input::KeyboardAndMouse::{VK_F10, VK_LSHIFT};
+use crate::icons::icon_manager::IconManager;
 
 lazy_static!(
     static ref IS_OPEN: AtomicBool = AtomicBool::new(false);
@@ -77,6 +78,7 @@ pub struct DisplaySettings {
     pub text: String,
     pub error: Option<SettingsError>,
     pub toml_parse: Vec<Vec<Span>>,
+    pub should_reload: bool,
     pub listener: ListenerStatus,
     pub shown: bool,
 }
@@ -86,6 +88,7 @@ impl DisplaySettings {
         let text = SettingsContext::read_or_default().src.replace("\r", "");
         let error = None;
         let toml_parse = parse_toml(&text);
+        let should_reload = false;
         let listener = setup_listener(
             Listener::Released {
                 keys: Box::new([VK_LSHIFT.0 as i32, VK_F10.0 as i32]),
@@ -96,6 +99,7 @@ impl DisplaySettings {
             text,
             error,
             toml_parse,
+            should_reload,
             listener,
             shown,
         }
@@ -229,10 +233,19 @@ impl DisplaySettings {
         draw_list.add_rect(inner_min, inner_max, [0.1, 0.1, 0.1, 0.5]).filled(true).build();
 
         // Buttons
-        draw_list.add_rect(save_button_min, save_button_max, [0.3, 0.3, 0.3, 1.0]).filled(true).build();
-        draw_list.add_text(save_button_text_pos, 0xFF_FF_FF_FF, "Save");
-        draw_list.add_rect(reload_button_min, reload_button_max, [0.3, 0.3, 0.3, 1.0]).filled(true).build();
-        draw_list.add_text(reload_button_text_pos, 0xFF_FF_FF_FF, "Reload icons");
+        if Self::button(ui, draw_list, "##save", save_button_min,
+                     save_button_max, save_button_text_pos, "Save") {
+            tracing::info!("Saving settings...");
+            SettingsContext::save(&self.text);
+            tracing::info!("Settings saved");
+        }
+        if Self::button(ui, draw_list, "##reload", reload_button_min,
+                     reload_button_max, reload_button_text_pos, "Reload icons") {
+            tracing::info!("Reloading icons...");
+            IconManager::reinit();
+            tracing::info!("IconManager reinitialized");
+            self.should_reload = true;
+        }
 
         draw_list.with_clip_rect(screen_min, screen_max, || {
             for (line_num, line) in lines.iter().enumerate() {
@@ -277,6 +290,13 @@ impl DisplaySettings {
                 caret_index -= line_len_with_newline;
             }
         });
+    }
+
+    fn button(ui: &Ui, draw_list: &DrawListMut, id: &str, c1: [f32; 2], c2: [f32; 2], text_pos: [f32; 2], text: &str) -> bool {
+        ui.set_cursor_screen_pos(c1);
+        draw_list.add_rect(c1, c2, [0.3, 0.3, 0.3, 1.0]).filled(true).build();
+        draw_list.add_text(text_pos, 0xFF_FF_FF_FF, text);
+        ui.invisible_button(id, [c2[0] - c1[0], c2[1] - c1[1]])
     }
 
     fn calc_button_sizes(ui: &Ui, start_pos: [f32; 2], text: &str, element_padding: f32) -> [[f32; 2]; 3] {

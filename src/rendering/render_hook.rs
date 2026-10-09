@@ -82,9 +82,14 @@ impl ImguiRenderLoop for RenderHook {
         );
     }
 
-    fn before_render<'a>(&'a mut self, ctx: &mut Context, _render_context: &'a mut dyn RenderContext) {
+    fn before_render<'a>(&'a mut self, ctx: &mut Context, render_context: &'a mut dyn RenderContext) {
         guard!(
             self.try_resize_font(ctx);
+            if self.display_settings.should_reload {
+                self.display_settings.should_reload = false;
+                IconManager::load(render_context);
+                tracing::info!("IconManager reloaded");
+            }
         );
     }
 

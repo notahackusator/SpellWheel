@@ -12,6 +12,7 @@ use crate::icons::atlas::Atlas;
 use crate::icons::AtlasIcon;
 use crate::icons::await_graphics::AwaitGraphics;
 use crate::icons::primary_color::PrimaryColors;
+use crate::icons::texture_manager::TextureManager;
 use crate::icons::vanilla_loader::BASE_GAME_SOURCE;
 use crate::settings::Settings;
 use crate::util::AddSpan;
@@ -203,8 +204,8 @@ fn parse_atlases(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_s
                         return Ok(());
                     }
                     // Stores atlas
-                    let texture_id = render_context.load_texture(
-                        DXGI_FORMAT(format as i32), dds.get_data(0).expect("Couldn't get DDS data"), dds.get_width(), dds.get_height()
+                    let texture_id = TextureManager::load(
+                        render_context, DXGI_FORMAT(format as i32), dds.get_data(0).expect("Couldn't get DDS data"), dds.get_width(), dds.get_height()
                     )?;
                     atlas.set_texture(texture_id, dds.get_width(), dds.get_height());
                     Ok(())
@@ -233,7 +234,9 @@ fn parse_atlases(source: String, await_graphics: &mut Vec<AwaitGraphics>, read_s
                         return Ok(());
                     }
                     // Stores atlas
-                    let texture_id = render_context.load_texture(DXGI_FORMAT_R8G8B8A8_UNORM, &icon.data, width, height)?;
+                    let texture_id = TextureManager::load(
+                        render_context, DXGI_FORMAT_R8G8B8A8_UNORM, &icon.data, width, height
+                    )?;
                     atlas.set_texture(texture_id, width, height);
                     Ok(())
                 }));

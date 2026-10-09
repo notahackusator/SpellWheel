@@ -3,7 +3,7 @@ pub mod visual_toml_parser;
 
 use crate::debugging::{run_every, run_once};
 use lazy_static::lazy_static;
-use std::fs::read_to_string;
+use std::fs::{read_to_string, write};
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 use std::time::Duration;
 use crate::paths;
@@ -306,6 +306,13 @@ impl SettingsContext {
         });
 
         SETTINGS_CACHE.read().expect("Could not acquire settings cache")
+    }
+
+    pub fn save(text: &str) {
+        let path = paths::settings();
+        if let Err(err) = write(path, text) {
+            tracing::error!("Error saving settings: {err}");
+        }
     }
 }
 

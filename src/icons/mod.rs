@@ -8,6 +8,7 @@ pub mod vanilla_loader;
 #[cfg(feature = "atlas-dump")]
 pub mod atlas_dump;
 pub mod primary_color;
+pub mod texture_manager;
 
 use crate::icons::atlas::Atlas;
 use crate::util::AddSpan;

@@ -43,6 +43,14 @@ pub struct IconManager {
 }
 
 impl IconManager {
+    fn uninit() -> Self {
+        Self {
+            await_graphics: Vec::new(),
+            static_icons: StaticIcons::new(),
+            icons: HashMap::new(),
+        }
+    }
+
     pub fn get_static_icons() -> Option<StaticIcons> {
         ICON_MANAGER.get()
             .and_then(|manager| manager.read().ok())
@@ -60,20 +68,32 @@ impl IconManager {
     }
 
     pub fn init() {
-        if ICON_MANAGER.set(Arc::new(RwLock::new(Self::init_inner()))).is_ok() {
-            tracing::info!("IconManager initialization finished");
-        } else {
+        if ICON_MANAGER.get().is_some() {
             tracing::error!("IconManager was already initialized");
+            return;
+        }
+        let mut this = Self::uninit();
+        this.init_inner();
+        let _ = ICON_MANAGER.set(Arc::new(RwLock::new(this)));
+        tracing::info!("IconManager initialization finished");
+    }
+
+    pub fn reinit() {
+        if let Some(icon_manager) = ICON_MANAGER.get() {
+            tracing::info!("Reinitializing IconManager...");
+            icon_manager.write().expect("Couldn't acquire ICON_MANAGER").init_inner();
+            tracing::info!("Reinitialization complete");
+        } else {
+            tracing::warn!("IconManager was never initialized, yet reinit was called");
+            Self::init();
         }
     }
 
-    fn init_inner() -> Self {
+    fn init_inner(&mut self) {
         #[cfg(feature = "atlas-dump")]
         crate::icons::atlas_dump::delete_previous_dumps();
 
-        let mut await_graphics = vec![];
-
-        if let Err(err) = vanilla_loader::load_icons(&mut await_graphics) {
+        if let Err(err) = vanilla_loader::load_icons(&mut self.await_graphics) {
             tracing::error!("Error loading vanilla icons: {err:?}");
         }
 
@@ -91,15 +111,9 @@ impl IconManager {
         }
 
         for modded_icons_path in paths {
-            if let Err(err) = modded_loader::load_icons(&mut await_graphics, &modded_icons_path) {
+            if let Err(err) = modded_loader::load_icons(&mut self.await_graphics, &modded_icons_path) {
                 tracing::error!("Error loading modded icons '{modded_icons_path:?}': {err:?}");
             }
-        }
-
-        Self {
-            await_graphics,
-            static_icons: StaticIcons::new(),
-            icons: Default::default(),
         }
     }
     
