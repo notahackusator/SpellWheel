@@ -12,6 +12,7 @@ pub mod wheel_renderer;
 pub mod debug_renderer;
 mod wrapped_text;
 pub mod render_hook;
+pub mod popup_renderer;
 
 static mut INIT: bool = false;
 pub fn try_init_rendering() {

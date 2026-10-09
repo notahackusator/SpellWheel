@@ -297,15 +297,19 @@ impl SettingsContext {
 
     pub fn read_or_default() -> RwLockReadGuard<'static, Self> {
         run_every!("SettingsContext::read_or_default" every Duration::from_secs(1) => {
-            let sc = SettingsContext::open_toml();
-            if let Some(err) = sc.get_err() {
-                tracing::error!("Could not open settings TOML, using default settings instead: {err}");
-            }
-            let ctx = sc.into_sc_or_else(SettingsContext::default);
-            *SETTINGS_CACHE.write().expect("Could not acquire settings cache") = ctx;
+            Self::load();
         });
 
         SETTINGS_CACHE.read().expect("Could not acquire settings cache")
+    }
+    
+    fn load() {
+        let sc = SettingsContext::open_toml();
+        if let Some(err) = sc.get_err() {
+            tracing::error!("Could not open settings TOML, using default settings instead: {err}");
+        }
+        let ctx = sc.into_sc_or_else(SettingsContext::default);
+        *SETTINGS_CACHE.write().expect("Could not acquire settings cache") = ctx;
     }
 
     pub fn save(text: &str) {
@@ -313,6 +317,7 @@ impl SettingsContext {
         if let Err(err) = write(path, text) {
             tracing::error!("Error saving settings: {err}");
         }
+        Self::load();
     }
 }
 

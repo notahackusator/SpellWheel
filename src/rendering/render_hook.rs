@@ -12,6 +12,7 @@ use crate::settings::Settings;
 use crate::{guard, set_hwnd, set_selected_quick_item_index, set_selected_spell_index};
 use hudhook::{ImguiRenderLoop, RenderContext};
 use imgui::{Context, Ui, WindowFlags};
+use crate::rendering::popup_renderer::{add_popup, draw_popups};
 use crate::settings::display_settings::DisplaySettings;
 
 pub struct RenderHook {
@@ -85,12 +86,20 @@ impl ImguiRenderLoop for RenderHook {
     fn before_render<'a>(&'a mut self, ctx: &mut Context, render_context: &'a mut dyn RenderContext) {
         guard!(
             self.try_resize_font(ctx);
-            if self.display_settings.should_reload {
+            if self.display_settings.reload_stage == 1 {
+                self.display_settings.reload_stage += 1;
+            } else if self.display_settings.reload_stage == 2 {
+                self.display_settings.reload_stage += 1;
+                IconManager::reinit();
+                tracing::info!("IconManager reinitialized");
+                add_popup("IconManager reinitialized (1/2)".to_string());
+            } else if self.display_settings.reload_stage == 3 {
+                self.display_settings.reload_stage = 0;
                 self.prev_spells = vec![];
                 self.prev_quick_items = vec![];
-                self.display_settings.should_reload = false;
                 IconManager::load(render_context);
                 tracing::info!("IconManager reloaded");
+                add_popup("IconManager reloaded (2/2)".to_string());
             }
         );
     }
@@ -191,6 +200,7 @@ impl ImguiRenderLoop for RenderHook {
 
                     let draw_list = ui.get_window_draw_list();
                     self.display_settings.draw(ui, &draw_list);
+                    draw_popups(ui, &draw_list);
                 });
 
             self.prev_type = wheel_type;

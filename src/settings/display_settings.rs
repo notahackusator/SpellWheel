@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 use windows::Win32::UI::Input::KeyboardAndMouse::{VK_F10, VK_LSHIFT};
 use crate::icons::icon_manager::IconManager;
+use crate::rendering::popup_renderer::add_popup;
 
 lazy_static!(
     static ref IS_OPEN: AtomicBool = AtomicBool::new(false);
@@ -78,7 +79,7 @@ pub struct DisplaySettings {
     pub text: String,
     pub error: Option<SettingsError>,
     pub toml_parse: Vec<Vec<Span>>,
-    pub should_reload: bool,
+    pub reload_stage: u8,
     pub listener: ListenerStatus,
     pub shown: bool,
 }
@@ -88,7 +89,7 @@ impl DisplaySettings {
         let text = SettingsContext::read_or_default().src.replace("\r", "");
         let error = None;
         let toml_parse = parse_toml(&text);
-        let should_reload = false;
+        let reload_stage = 0;
         let listener = setup_listener(
             Listener::Released {
                 keys: Box::new([VK_LSHIFT.0 as i32, VK_F10.0 as i32]),
@@ -99,7 +100,7 @@ impl DisplaySettings {
             text,
             error,
             toml_parse,
-            should_reload,
+            reload_stage,
             listener,
             shown,
         }
@@ -235,15 +236,16 @@ impl DisplaySettings {
         if Self::button(ui, draw_list, "##save", save_button_min,
                      save_button_max, save_button_text_pos, "Save") {
             tracing::info!("Saving settings...");
+            add_popup("Saving settings...".to_string());
             SettingsContext::save(&self.text);
             tracing::info!("Settings saved");
+            add_popup("Settings saved".to_string());
         }
         if Self::button(ui, draw_list, "##reload", reload_button_min,
                      reload_button_max, reload_button_text_pos, "Reload icons") {
             tracing::info!("Reloading icons...");
-            IconManager::reinit();
-            tracing::info!("IconManager reinitialized");
-            self.should_reload = true;
+            add_popup("Reloading icons, this could take a while...".to_string());
+            self.reload_stage = 1;
         }
 
         draw_list.with_clip_rect(screen_min, screen_max, || {
