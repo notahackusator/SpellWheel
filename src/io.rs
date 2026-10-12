@@ -11,6 +11,9 @@ use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetW
 use lazy_static::lazy_static;
 use std::sync::Mutex;
 use std::time::Duration;
+use eldenring::cs::{CSInGamePad, UserInputKey};
+use eldenring::fd4::FD4PadManager;
+use fromsoftware_shared::FromStatic;
 use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_UP};
 
 lazy_static!(
@@ -21,6 +24,24 @@ lazy_static!(
 );
 
 pub fn selected_wheel_type() -> WheelType {
+	// let pad = unsafe { FD4PadManager::instance()
+	// 	.and_then(FD4PadManager::get_in_game_pad) }.ok();
+	io_selected_wheel_type()
+	// ingame_selected_wheel_type(pad)
+}
+
+pub fn ingame_selected_wheel_type(pad: &CSInGamePad) -> WheelType {
+	todo!();
+	if pad.poll_digital_input(UserInputKey::SwitchItem) {
+		WheelType::QuickItems
+	} else if pad.poll_digital_input(UserInputKey::SwitchSpell) {
+		WheelType::Spells
+	} else {
+		WheelType::None
+	}
+}
+
+pub fn io_selected_wheel_type() -> WheelType {
 	if in_menus() {
 		if is_debugging() {
 			add_to_screen_debug("Player in menus".to_string());

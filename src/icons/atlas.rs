@@ -23,7 +23,7 @@ impl Atlas {
     pub fn new(name: String, source: Arc<str>, dds: &Dds) -> Self {
         Self {
             name: name.into(),
-            source: source.into(),
+            source,
             atlas_texture: None,
             pc: PrimaryColors::try_from(dds).ok(),
             used: false,

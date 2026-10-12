@@ -265,6 +265,12 @@ impl DisplayItem {
         self.draw_centered_name(settings, ui, cx, cy);
 
         let [x, y, w, h] = *rect;
+        let col = u32::from_be_bytes([
+            (0xFE as f32 * settings.icon_tint[3]) as u8,
+            (0xFF as f32 * settings.icon_tint[2]) as u8,
+            (0xFF as f32 * settings.icon_tint[1]) as u8,
+            (0xFF as f32 * settings.icon_tint[0]) as u8,
+        ]);
         draw_list.add_image(
             *texture_id,
             positions.img_c1,
@@ -272,7 +278,7 @@ impl DisplayItem {
         )
             .uv_min([x, y])
             .uv_max([x + w, y + h])
-            .col(0xFE_FF_FF_FF)
+            .col(col)
             .build();
     }
 

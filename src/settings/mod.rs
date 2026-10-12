@@ -81,6 +81,7 @@ settings!(
     switch_instantly: bool,
     item_names: String,
     text_shadows: bool,
+    icon_tint: [f32; 4],
     font_scale_multiplier: f32,
     icon_scale_multiplier: f32,
     radius_multiplier: f32,
@@ -143,6 +144,10 @@ pub fn item_names() -> String {
 
 pub const fn text_shadows() -> bool {
     true
+}
+
+pub const fn icon_tint() -> [f32; 4] {
+    [1.0; 4]
 }
 
 pub const fn debugging() -> bool {
@@ -302,7 +307,7 @@ impl SettingsContext {
 
         SETTINGS_CACHE.read().expect("Could not acquire settings cache")
     }
-    
+
     fn load() {
         let sc = SettingsContext::open_toml();
         if let Some(err) = sc.get_err() {

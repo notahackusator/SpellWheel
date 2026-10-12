@@ -8,9 +8,7 @@ use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
 use windows::Win32::UI::Input::KeyboardAndMouse::{VK_F10, VK_LSHIFT};
-use crate::icons::icon_manager::IconManager;
 use crate::rendering::popup_renderer::add_popup;
 
 lazy_static!(
@@ -61,20 +59,6 @@ impl GenericPop for ColorStackToken<'_> {
     }
 }
 
-pub struct SettingsErrorHolder {
-    updated: Instant,
-    error: Option<SettingsError>,
-}
-
-impl SettingsErrorHolder {
-    pub fn new() -> Self {
-        Self {
-            updated: Instant::now(),
-            error: None,
-        }
-    }
-}
-
 pub struct DisplaySettings {
     pub text: String,
     pub error: Option<SettingsError>,
@@ -122,7 +106,7 @@ impl DisplaySettings {
     }
 
     pub fn edit(&mut self, ui: &Ui, pos: [f32; 2], size: [f32; 2]) -> EditCallback {
-        let mut callback = EditCallback::new();
+        let callback = EditCallback::new();
         let lh = ui.text_line_height();
 
         let (mut n_lines, mut max_w) = (0, 0.0f32);
@@ -202,10 +186,8 @@ impl DisplaySettings {
         for (i, line) in lines.iter().enumerate() {
             let mut lw = ui.calc_text_size(line)[0];
 
-            if let Some(error) = &self.error {
-                if error.line == i {
-                    lw += ui.calc_text_size(&error.msg)[0];
-                }
+            if let Some(error) = &self.error && error.line == i {
+                lw += ui.calc_text_size(&error.msg)[0];
             }
 
             text_width = text_width.max(lw);
@@ -265,17 +247,15 @@ impl DisplaySettings {
                 }
 
                 // Render line error
-                if let Some(error) = &self.error {
-                    if error.line == line_num {
-                        let lw = ui.calc_text_size(line)[0];
-                        let [ew, eh] = ui.calc_text_size(&error.msg);
-                        let c1 = [pos[0] + lw, pos[1]];
-                        draw_list
-                            .add_rect(c1, [c1[0] + ew, c1[1] + eh], [1.0, 0.0, 0.0, 1.0])
-                            .filled(true)
-                            .build();
-                        draw_list.add_text(c1, [1.0; 4], &error.msg);
-                    }
+                if let Some(error) = &self.error && error.line == line_num {
+                    let lw = ui.calc_text_size(line)[0];
+                    let [ew, eh] = ui.calc_text_size(&error.msg);
+                    let c1 = [pos[0] + lw, pos[1]];
+                    draw_list
+                        .add_rect(c1, [c1[0] + ew, c1[1] + eh], [1.0, 0.0, 0.0, 1.0])
+                        .filled(true)
+                        .build();
+                    draw_list.add_text(c1, [1.0; 4], &error.msg);
                 }
 
                 // Render caret

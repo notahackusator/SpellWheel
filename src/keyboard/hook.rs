@@ -1,15 +1,12 @@
-use std::cell::Cell;
 use std::ffi::c_void;
 use std::mem;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
-use std::time::Duration;
 use hudhook::windows::core::Interface;
 use hudhook::windows::Win32::Devices::HumanInterfaceDevice::{DirectInput8Create, GUID_SysKeyboard, IDirectInput8W, IDirectInputDevice8W};
 use lazy_static::lazy_static;
-use retour::{static_detour, GenericDetour};
+use retour::GenericDetour;
 use windows::core::s;
-use windows::Win32::Foundation::HINSTANCE;
 use windows::Win32::System::LibraryLoader::{GetModuleHandleA, GetModuleHandleW, GetProcAddress};
 use crate::settings::display_settings::display_settings_open;
 
@@ -54,10 +51,9 @@ unsafe extern "system" fn get_raw_input_data_detour(
 ) -> u32 {
     let r = RAW_HOOK.get().unwrap().call(h, cmd, data, size, hdr_size);
     const RID_INPUT: u32 = 0x1000_0003;
-    if r != u32::MAX && !data.is_null() && cmd == RID_INPUT && display_settings_open() {
-        if *(data as *const u32) == 0 && r > hdr_size {
-            std::ptr::write_bytes((data as *mut u8).add(hdr_size as usize), 0, (r - hdr_size) as usize);
-        }
+    if r != u32::MAX && !data.is_null() && cmd == RID_INPUT && display_settings_open()
+        && *(data as *const u32) == 0 && r > hdr_size {
+        std::ptr::write_bytes((data as *mut u8).add(hdr_size as usize), 0, (r - hdr_size) as usize);
     }
     r
 }

@@ -2,16 +2,18 @@
 # You can visit this website for the full list of VK codes:
 # https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 # Note that you should not prefix the key with "VK_". So if you want Tab, write "TAB". If you want Alt, write "MENU".
-spells_key = "TAB"
+# Or, write "INGAME" to use whatever the game uses.
+spells_key = "INGAME"
 
-quick_items_key = "CAPITAL"
+quick_items_key = "INGAME"
 
 # The button used to open the spell wheel on controller. The following is a list of valid values:
 # UP, DOWN, LEFT, RIGHT, A, B, X, Y, R1, R2, R3, L1, L2, L3
+# Or, write "INGAME" to use whatever the game uses.
 # They must be surrounded by double quotes.
-spells_button = "UP"
+spells_button = "INGAME"
 
-quick_items_button = "DOWN"
+quick_items_button = "INGAME"
 
 # Decides whether to use controller or mouse and keyboard. true for controller, false for mouse & keyboard. Default is false.
 using_controller = false
@@ -42,6 +44,10 @@ item_names = "show"
 
 # Whether text shadows are enabled. Default is true.
 text_shadows = true
+
+# Applies a tint to the icons in the spell / item wheel. Default is [1.0, 1.0, 1.0, 1.0].
+# The format is Red, Green, Blue, Alpha (Opacity).
+icon_tint = [1.0, 1.0, 1.0, 1.0]
 
 # The amount to scale the item name font size. Default is 1.
 font_scale_multiplier = 1.0

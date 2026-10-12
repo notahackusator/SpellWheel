@@ -135,8 +135,8 @@ impl PrimaryColors {
 
     pub fn build_from_rgba(width: usize, height: usize, data: &[u8]) -> Self {
         const BLOCK: usize = 4;
-        let blocks_wide = (width + BLOCK - 1) / BLOCK;
-        let blocks_high = (height + BLOCK - 1) / BLOCK;
+        let blocks_wide = width.div_ceil(BLOCK);
+        let blocks_high = height.div_ceil(BLOCK);
 
         let mut pc: Vec<Box<[AverageColor]>> = Vec::with_capacity(blocks_high);
         for by in 0..blocks_high {

@@ -104,7 +104,7 @@ pub fn rotated_image(cx: f32, cy: f32, width: f32, height: f32, angle: f32) -> [
 }
 
 pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: f32, img_dim: f32,
-                       draw_list: &DrawListMut, mut angle: f32, can_select: bool, dist_sqr: f32, min_dist_sqr: f32) {
+                       draw_list: &DrawListMut, mut angle: f32, can_select: bool) {
     if settings.using_controller && !can_select {
         return;
     }
@@ -247,7 +247,7 @@ pub fn render_wheel(items: &mut [DisplayItem], ui: &Ui, draw_list: &DrawListMut)
     }
 
     let img_dim = DisplayItem::img_dim();
-    render_selector(&settings, items, ww, wh, img_dim, draw_list, angle, can_select, dist_sqr, min_radius_sqr);
+    render_selector(&settings, items, ww, wh, img_dim, draw_list, angle, can_select);
 
     let num_items = items.len();
     for item in items.iter_mut() {

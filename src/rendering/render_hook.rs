@@ -12,6 +12,7 @@ use crate::settings::Settings;
 use crate::{guard, set_hwnd, set_selected_quick_item_index, set_selected_spell_index};
 use hudhook::{ImguiRenderLoop, RenderContext};
 use imgui::{Context, Ui, WindowFlags};
+use crate::icons::texture_manager::TextureManager;
 use crate::rendering::popup_renderer::{add_popup, draw_popups};
 use crate::settings::display_settings::DisplaySettings;
 
@@ -97,6 +98,7 @@ impl ImguiRenderLoop for RenderHook {
                 self.display_settings.reload_stage = 0;
                 self.prev_spells = vec![];
                 self.prev_quick_items = vec![];
+                TextureManager::unload_all();
                 IconManager::load(render_context);
                 tracing::info!("IconManager reloaded");
                 add_popup("IconManager reloaded (2/2)".to_string());
@@ -113,10 +115,9 @@ impl ImguiRenderLoop for RenderHook {
 
             let settings = Settings::read_or_default();
 
-            if (self.prev_type != WheelType::None) && (wheel_type == WheelType::None) {
-                if !settings.using_controller && settings.center_on_close {
-                    reset_cursor_pos();
-                }
+            if (self.prev_type != WheelType::None) && (wheel_type == WheelType::None) &&
+                !settings.using_controller && settings.center_on_close {
+                reset_cursor_pos();
             }
 
             let switch_items = settings.switch_instantly || (self.prev_type != wheel_type);

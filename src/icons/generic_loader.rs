@@ -11,7 +11,6 @@ use crate::dynamic_icons::read_success::ReadSuccess;
 use crate::icons::atlas::Atlas;
 use crate::icons::AtlasIcon;
 use crate::icons::await_graphics::AwaitGraphics;
-use crate::icons::primary_color::PrimaryColors;
 use crate::icons::texture_manager::TextureManager;
 use crate::icons::vanilla_loader::BASE_GAME_SOURCE;
 use crate::settings::Settings;

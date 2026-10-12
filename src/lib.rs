@@ -27,7 +27,7 @@ use crate::glyphs::font_manager::FontManager;
 use crate::icons::icon_manager::IconManager;
 use crate::rendering::{remove_hudhook, try_init_rendering};
 use eldenring::cs::{CSFeManHudState, CSFeManImp, CSMenuManImp, CSTaskGroupIndex, CSTaskImp, GameDataMan, Magic, SoloParam, SoloParamRepository, WorldChrManDbg};
-use eldenring::fd4::{FD4PadManager, FD4TaskData};
+use eldenring::fd4::FD4TaskData;
 use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use hudhook::hooks::dx12::get_hwnd;

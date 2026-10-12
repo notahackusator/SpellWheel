@@ -5,6 +5,7 @@ use crate::xinput_hook::get_xinput_gamepad_state;
 use crate::PROGRAM_START;
 use std::time::{Duration, Instant};
 use lazy_static::lazy_static;
+use windows::Win32::Foundation::ERROR_DEVICE_NOT_CONNECTED;
 use windows::Win32::UI::Input::XboxController::*;
 
 pub type GamepadButtons = XINPUT_GAMEPAD_BUTTON_FLAGS;
@@ -74,6 +75,18 @@ impl GamepadState {
     }
 
     pub fn update(&mut self) {
+        let gamepad_status = unsafe {
+            XInputGetCapabilities(0, XINPUT_FLAG_ALL, &mut Default::default())
+        };
+        if gamepad_status == ERROR_DEVICE_NOT_CONNECTED.0 {
+            self.l2 = *PROGRAM_START;
+            self.r2 = *PROGRAM_START;
+            self.right_stick = [0.0; 2];
+            for pressed in &mut self.pressed {
+                *pressed = *PROGRAM_START;
+            }
+            return;
+        }
         let gamepad = get_xinput_gamepad_state();
 
         let now = Instant::now();
