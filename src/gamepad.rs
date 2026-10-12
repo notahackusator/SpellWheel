@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::xinput_hook::get_xinput_gamepad_state;
 use crate::PROGRAM_START;
@@ -27,6 +28,10 @@ lazy_static!(
         ("L2", Err(false)),
         ("L3", Ok(XINPUT_GAMEPAD_LEFT_THUMB)),
     ]);
+    static ref CONNECTION_STATUS: Arc<RwLock<ControllerConnectionStatus>> = Arc::new(
+        RwLock::new(ControllerConnectionStatus::Unknown)
+    );
+    static ref LATEST_SELECT_CONTROLLER: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
 );
 
 #[derive(Clone, Debug)]
@@ -152,5 +157,27 @@ pub fn gamepad_state() -> GamepadState {
             tracing::error!("gamepad_data called before GAMEPAD_STATE was initialized");
             GamepadState::new()
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ControllerConnectionStatus {
+    Connected,
+    Disconnected,
+    Unknown,
+}
+
+pub fn controller_connected() -> ControllerConnectionStatus {
+    CONNECTION_STATUS.read().expect("Couldn't acquire CONNECTION_STATUS").clone()
+}
+
+pub fn set_latest_select_controller(latest_select_is_controller: bool) {
+    LATEST_SELECT_CONTROLLER.store(latest_select_is_controller, Ordering::Relaxed);
+}
+
+pub fn using_controller() -> bool {
+    match (controller_connected(), LATEST_SELECT_CONTROLLER.load(Ordering::Relaxed)) {
+        (ControllerConnectionStatus::Connected, true) => true,
+        _ => false,
     }
 }

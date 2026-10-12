@@ -9,6 +9,7 @@ use crate::settings::{ItemNames, Settings, Style};
 use imgui::{DrawListMut, Ui};
 use std::fmt::{Debug, Formatter};
 use std::time::Instant;
+use crate::gamepad::using_controller;
 
 pub struct Positions {
     pub img_c1: [f32; 2],
@@ -293,7 +294,7 @@ impl DisplayItem {
 
     fn draw_controller_arc(&self, settings: &Settings, ww: f32, wh: f32, img_dim: f32,
                            num_items: usize, draw_list: &DrawListMut, cx: f32, cy: f32, col: u32) {
-        if settings.using_controller {
+        if using_controller() {
             let thickness = ww.min(wh) / 200.0;
 
             let thickness_mul = if let Style::Pretty = settings.style() {

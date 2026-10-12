@@ -12,6 +12,7 @@ use crate::settings::Settings;
 use crate::{guard, set_hwnd, set_selected_quick_item_index, set_selected_spell_index};
 use hudhook::{ImguiRenderLoop, RenderContext};
 use imgui::{Context, Ui, WindowFlags};
+use crate::gamepad::using_controller;
 use crate::icons::texture_manager::TextureManager;
 use crate::rendering::popup_renderer::{add_popup, draw_popups};
 use crate::settings::display_settings::DisplaySettings;
@@ -116,7 +117,7 @@ impl ImguiRenderLoop for RenderHook {
             let settings = Settings::read_or_default();
 
             if (self.prev_type != WheelType::None) && (wheel_type == WheelType::None) &&
-                !settings.using_controller && settings.center_on_close {
+                !using_controller() && settings.center_on_close {
                 reset_cursor_pos();
             }
 

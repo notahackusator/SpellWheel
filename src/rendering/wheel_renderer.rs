@@ -1,5 +1,5 @@
 use crate::debugging::{add_to_screen_debug, is_debugging};
-use crate::gamepad::gamepad_state;
+use crate::gamepad::{gamepad_state, using_controller};
 use crate::hwindow::get_window_size;
 use crate::icons::icon_manager::IconManager;
 use crate::mouse::get_mouse_state;
@@ -105,7 +105,7 @@ pub fn rotated_image(cx: f32, cy: f32, width: f32, height: f32, angle: f32) -> [
 
 pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: f32, img_dim: f32,
                        draw_list: &DrawListMut, mut angle: f32, can_select: bool) {
-    if settings.using_controller && !can_select {
+    if using_controller() && !can_select {
         return;
     }
     match settings.style() {
@@ -115,7 +115,7 @@ pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: 
             };
 
             let no_items_selected = !items.iter().any(|di| di.is_highlighted);
-            if no_items_selected && !settings.using_controller {
+            if no_items_selected && !using_controller() {
                 return;
             }
 
@@ -150,7 +150,7 @@ pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: 
                 })
                 .unwrap_or([255.0, 255.0, 255.0, 0.0, 0.0]);
 
-            if !settings.using_controller {
+            if !using_controller() {
                 angle = item_angle;
             }
             // let normalized_selection = (dist_sqr / min_dist_sqr).clamp(0.0, 1.0);
@@ -173,7 +173,7 @@ pub fn render_selector(settings: &Settings, items: &[DisplayItem], ww: f32, wh: 
                 .build();
         }
         Style::Simple => {
-            if !settings.using_controller || !can_select {
+            if !using_controller() || !can_select {
                 return;
             }
 
@@ -220,10 +220,13 @@ pub fn render_wheel(items: &mut [DisplayItem], ui: &Ui, draw_list: &DrawListMut)
     }
     let settings = Settings::read_or_default();
 
-    let (angle, dist_sqr) = angle_and_dist_sqr(ui, match settings.using_controller {
-        true => Ok(gamepad_state().right_stick),
-        false => Err(get_mouse_state().mouse_pos()),
-    });
+    let (controller_angle, controller_dist_sqr) = angle_and_dist_sqr(ui, Ok(gamepad_state().right_stick));
+    let (mouse_angle, mouse_dist_sqr) = angle_and_dist_sqr(ui, Err(get_mouse_state().mouse_pos()));
+    let (angle, dist_sqr) = if controller_dist_sqr > mouse_dist_sqr {
+        (controller_angle, controller_dist_sqr)
+    } else {
+        (mouse_angle, mouse_dist_sqr)
+    };
 
     let [ww, wh] = get_window_size();
     let min_radius_sqr = (

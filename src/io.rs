@@ -24,24 +24,12 @@ lazy_static!(
 );
 
 pub fn selected_wheel_type() -> WheelType {
-	// let pad = unsafe { FD4PadManager::instance()
-	// 	.and_then(FD4PadManager::get_in_game_pad) }.ok();
-	io_selected_wheel_type()
-	// ingame_selected_wheel_type(pad)
+	let pad = unsafe { FD4PadManager::instance().ok()
+		.and_then(FD4PadManager::get_in_game_pad) };
+	io_selected_wheel_type(pad)
 }
 
-pub fn ingame_selected_wheel_type(pad: &CSInGamePad) -> WheelType {
-	todo!();
-	if pad.poll_digital_input(UserInputKey::SwitchItem) {
-		WheelType::QuickItems
-	} else if pad.poll_digital_input(UserInputKey::SwitchSpell) {
-		WheelType::Spells
-	} else {
-		WheelType::None
-	}
-}
-
-pub fn io_selected_wheel_type() -> WheelType {
+pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 	if in_menus() {
 		if is_debugging() {
 			add_to_screen_debug("Player in menus".to_string());
@@ -52,6 +40,20 @@ pub fn io_selected_wheel_type() -> WheelType {
 	let mut ret = WheelType::None;
 	
 	let settings = Settings::read_or_default();
+
+	if (settings.spells_key.to_lowercase() == "ingame" ||
+		settings.spells_button.to_lowercase() == "ingame") &&
+		pad.is_some_and(|pad| pad.poll_digital_input(UserInputKey::SwitchSpell)) {
+
+		return WheelType::Spells;
+	}
+	if (settings.quick_items_key.to_lowercase() == "ingame" ||
+		settings.quick_items_button.to_lowercase() == "ingame") &&
+		pad.is_some_and(|pad| pad.poll_digital_input(UserInputKey::SwitchItem)) {
+
+		return WheelType::QuickItems;
+	}
+
 	for (wheel_type, button_mutex, settings_button_default, raw_button_default, key_mutex, settings_key_default, raw_key_default) in [
 		(WheelType::Spells, PREV_BUTTON_SPELLS.lock(), settings.spells_button, XINPUT_GAMEPAD_DPAD_UP, PREV_KEY_SPELLS.lock(), settings.spells_key, VK_TAB),
 		(WheelType::QuickItems, PREV_BUTTON_QUICK_ITEMS.lock(), settings.quick_items_button, XINPUT_GAMEPAD_DPAD_DOWN, PREV_KEY_QUICK_ITEMS.lock(), settings.quick_items_key, VK_CAPITAL)
