@@ -6,15 +6,15 @@ use crate::settings::Settings;
 use crate::{in_menus, keyboard};
 use eldenring::util::input::is_key_pressed;
 use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
-use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{VK_CAPITAL, VK_TAB};
+use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_CAPITAL, VK_TAB};
 use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use lazy_static::lazy_static;
-use std::sync::Mutex;
+use std::sync::{LockResult, Mutex, MutexGuard};
 use std::time::Duration;
 use eldenring::cs::{CSInGamePad, UserInputKey};
 use eldenring::fd4::FD4PadManager;
 use fromsoftware_shared::FromStatic;
-use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_UP};
+use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD_BUTTON_FLAGS, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_UP};
 
 lazy_static!(
 	static ref PREV_BUTTON_SPELLS: Mutex<Option<String>> = Mutex::new(None);
@@ -36,9 +36,7 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 		}
 		return WheelType::None;
 	}
-	
-	let mut ret = WheelType::None;
-	
+
 	let settings = Settings::read_or_default();
 
 	if (settings.spells_key.to_lowercase() == "ingame" ||
@@ -54,73 +52,69 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 		return WheelType::QuickItems;
 	}
 
-	for (wheel_type, button_mutex, settings_button_default, raw_button_default, key_mutex, settings_key_default, raw_key_default) in [
-		(WheelType::Spells, PREV_BUTTON_SPELLS.lock(), settings.spells_button, XINPUT_GAMEPAD_DPAD_UP, PREV_KEY_SPELLS.lock(), settings.spells_key, VK_TAB),
-		(WheelType::QuickItems, PREV_BUTTON_QUICK_ITEMS.lock(), settings.quick_items_button, XINPUT_GAMEPAD_DPAD_DOWN, PREV_KEY_QUICK_ITEMS.lock(), settings.quick_items_key, VK_CAPITAL)
-	] {
-		match settings.using_controller {
-			true => {
-				let mut prev_button_mutex = button_mutex.expect("Couldn't get button_mutex");
-				let button = settings_button_default;
-				let button_changed = match prev_button_mutex.as_ref() {
-					Some(prev_button) => &button == prev_button,
-					None => false
-				};
-				let button_valid = BUTTONS.contains_key(button.to_uppercase().as_str());
-				if button_changed && !button_valid {
-					tracing::error!("Invalid button: {button}");
-				}
+	let spells = (
+		WheelType::Spells,
+		PREV_BUTTON_SPELLS.lock(), settings.spells_button.clone(), XINPUT_GAMEPAD_DPAD_UP,
+		PREV_KEY_SPELLS.lock(), settings.spells_key.clone(), VK_TAB,
+	);
+	let quick_items = (
+		WheelType::QuickItems,
+		PREV_BUTTON_QUICK_ITEMS.lock(), settings.quick_items_button.clone(), XINPUT_GAMEPAD_DPAD_DOWN,
+		PREV_KEY_QUICK_ITEMS.lock(), settings.quick_items_key.clone(), VK_CAPITAL,
+	);
+	for (
+		wheel_type,
+		prev_button, button, raw_button_default,
+		prev_key, key, raw_key_default,
+	) in [spells, quick_items] {
+		if let Some(value) = is_wheel_open_button_pressed(&settings, wheel_type, prev_button, button, raw_button_default) {
+			return value;
+		}
 
-				let button_code = *BUTTONS.get(button.to_uppercase().as_str())
-					.unwrap_or(&Ok(raw_button_default));
-				let pressed = gamepad_state().pressed_duration(button_code);
-				let out = pressed.is_some_and(|duration| duration.as_secs_f32() > settings.controller_wheel_open_delay);
-				if is_debugging() {
-					run_every!(format!("{wheel_type:?} button valid / pressed"); every Duration::from_secs(1) => {
-						let button_code = match button_code {
-							Ok(code) => code.0.to_string(),
-							Err(is_r2) if is_r2 => "R2".to_string(),
-							Err(_) => "L2".to_string(),
-						};
-						tracing::info!("{button}: code = {button_code}, valid? = {button_valid}, pressed? = {}, focused? = {}", out, is_game_focused())
-					});
-				}
-				*prev_button_mutex = Some(button);
-				if out {
-					ret = wheel_type;
-					break;
-				}
-			}
-			false => {
-				let mut prev_key_mutex = key_mutex.expect("Couldn't get key_mutex");
-				let key = settings_key_default;
-				let key_changed = match prev_key_mutex.as_ref() {
-					Some(prev_key) => &key == prev_key,
-					None => false
-				};
-				let key_valid = KEYS.contains_key(key.to_uppercase().as_str());
-				if key_changed && !key_valid {
-					tracing::error!("Invalid key: {key}");
-				}
-
-				let key_code = *KEYS.get(key.to_uppercase().as_str())
-					.unwrap_or(&raw_key_default.0) as i32;
-				let out = keyboard::is_pressed(key_code);
-				if is_debugging() {
-					run_every!(format!("{wheel_type:?} key valid / pressed"); every Duration::from_secs(1) => {
-						tracing::info!("{key}: code = {key_code}, valid? = {key_valid}, pressed? = {}, focused? = {}", is_key_pressed(key_code), is_game_focused())
-					});
-				}
-				*prev_key_mutex = Some(key);
-				if out {
-					ret = wheel_type;
-					break;
-				}
-			}
+		if let Some(value) = is_wheel_open_key_pressed(wheel_type, prev_key, key, &raw_key_default) {
+			return value;
 		}
 	}
-	
-	ret
+
+	WheelType::None
+}
+
+fn is_wheel_open_key_pressed(wheel_type: WheelType, prev_key: LockResult<MutexGuard<Option<String>>>, key: String, raw_key_default: &VIRTUAL_KEY) -> Option<WheelType> {
+	let mut prev_key = prev_key.expect("Couldn't acquire prev_key");
+	let key_changed = matches!(&*prev_key, Some(prev_key) if prev_key != &key);
+	let key_code = *KEYS.get(key.to_uppercase().as_str())
+		.unwrap_or_else(|| {
+			if key_changed {
+				tracing::error!("Invalid key: {key}");
+			}
+			&raw_key_default.0
+		}) as i32;
+	*prev_key = Some(key);
+	let out = keyboard::is_pressed(key_code);
+	if out {
+		return Some(wheel_type);
+	}
+	None
+}
+
+fn is_wheel_open_button_pressed(settings: &Settings, wheel_type: WheelType, prev_button: LockResult<MutexGuard<Option<String>>>, button: String, raw_button_default: XINPUT_GAMEPAD_BUTTON_FLAGS) -> Option<WheelType> {
+	let mut prev_button = prev_button.expect("Couldn't acquire prev_button");
+	let button_changed = matches!(&*prev_button, Some(prev_button) if prev_button != &button);
+	let button_code = BUTTONS.get(button.to_uppercase().as_str())
+		.cloned()
+		.unwrap_or_else(|| {
+			if button_changed {
+				tracing::error!("Invalid button: {button}");
+			}
+			Ok(raw_button_default)
+		});
+	*prev_button = Some(button);
+	let pressed = gamepad_state().pressed_duration(button_code);
+	let out = pressed.is_some_and(|duration| duration.as_secs_f32() > settings.controller_wheel_open_delay);
+	if out {
+		return Some(wheel_type);
+	}
+	None
 }
 
 pub fn is_game_focused() -> bool {
