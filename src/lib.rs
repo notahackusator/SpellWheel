@@ -112,6 +112,7 @@ fn deinit() {
     tracing::info!("DLL detach called");
     remove_hudhook();
     remove_xinput_hook();
+    unsafe { io::uninstall_all() };
 }
 
 lazy_static!(
@@ -256,6 +257,7 @@ fn tick(_fd4: &FD4TaskData) {
         update_gamepad_state();
         try_init_rendering();
         tick_listeners();
+        unsafe { io::install_all(); }
 
         let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);
         if selected_spell_index != -1 {
