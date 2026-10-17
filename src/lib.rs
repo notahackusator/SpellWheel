@@ -49,7 +49,7 @@ use crate::settings::Settings;
 use crate::settings::display_settings::display_settings_open;
 use crate::xinput_hook::{install_xinput_hook, remove_xinput_hook, set_suppress_camera};
 use keyboard::listener::tick_listeners;
-use crate::io::install_io_hooks;
+use crate::io::{install_io_hooks, uninstall_io_hooks};
 use crate::keyboard::hook::install_keyboard_and_mouse_hooks;
 
 static HMODULE: OnceLock<usize> = OnceLock::new();
@@ -113,8 +113,7 @@ fn deinit() {
     tracing::info!("DLL detach called");
     remove_hudhook();
     remove_xinput_hook();
-    // io::uninstall_io_hooks();
-    unsafe { io::dbg_hook::uninstall(); }
+    uninstall_io_hooks();
 }
 
 lazy_static!(
@@ -259,10 +258,7 @@ fn tick(_fd4: &FD4TaskData) {
         update_gamepad_state();
         try_init_rendering();
         tick_listeners();
-        // install_io_hooks();
-        run_once!("claude shit" => {
-            unsafe { io::dbg_hook::install(); }
-        });
+        install_io_hooks();
 
         let selected_spell_index = SELECTED_SPELL_INDEX.load(Ordering::Relaxed);
         if selected_spell_index != -1 {
