@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::mem;
 use crate::debugging::{add_to_screen_debug, is_debugging, run_every, run_once};
 use crate::gamepad::{BUTTONS, gamepad_state};
@@ -6,24 +5,24 @@ use crate::keyboard::KEYS;
 use crate::rendering::wheel_renderer::WheelType;
 use crate::settings::Settings;
 use crate::{in_menus, keyboard};
-use eldenring::util::input::is_key_pressed;
 use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
 use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_CAPITAL, VK_TAB};
 use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use lazy_static::lazy_static;
-use std::sync::{Arc, LockResult, Mutex, MutexGuard, OnceLock, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{LockResult, Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 use eldenring::cs::{CSInGamePad, UserInputKey};
-use eldenring::fd4::{FD4PadManager, InputTypeGroup};
+use eldenring::fd4::FD4PadManager;
 use fromsoftware_shared::FromStatic;
 use retour::GenericDetour;
-use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD_BUTTON_FLAGS, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_UP};
+use windows::Win32::UI::Input::KeyboardAndMouse::VK_0;
+use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD_BUTTON_FLAGS};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use crate::keyboard::listener::{static_listener, Listener};
 
 lazy_static!(
-	static ref PREV_BUTTON_SPELLS: Mutex<Option<String>> = Mutex::new(None);
-	static ref PREV_BUTTON_QUICK_ITEMS: Mutex<Option<String>> = Mutex::new(None);
+	// static ref PREV_BUTTON_SPELLS: Mutex<Option<String>> = Mutex::new(None);
+	// static ref PREV_BUTTON_QUICK_ITEMS: Mutex<Option<String>> = Mutex::new(None);
 	static ref PREV_KEY_SPELLS: Mutex<Option<String>> = Mutex::new(None);
 	static ref PREV_KEY_QUICK_ITEMS: Mutex<Option<String>> = Mutex::new(None);
 );
@@ -41,17 +40,103 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 		}
 		return WheelType::None;
 	}
+	if let Some(pad) = pad.as_ref() {
+		if static_listener(
+			"bomboclat".to_string(),
+			|| Listener::Released {
+				keys: Box::new([VK_0.0 as i32])
+			}
+		).is_active() {
+			let key_assign = unsafe { pad.key_assign.as_ref() }; // if private, make it pub in your fork
+			let ka = std::ptr::from_ref(key_assign).cast::<usize>();
+			let input_mapper = unsafe { *ka.add(2) } as *const usize; // FD4BaseKeyAssign.input_mapper at +0x10
+
+			unsafe {
+				use dbg_hook::*;
+				// log_vtable("key_assign", ka);
+				// log_vtable("input_mapper", input_mapper);
+				let inner = *input_mapper.add(1) as *const usize; // input_mapper + 8
+				// log_vtable("input_mapper.inner", inner);
+
+				let set = inner;
+				let begin = unsafe { *set.add(2) } as *const usize; // +0x10
+				let end = unsafe { *set.add(3) } as *const usize;   // +0x18
+				let bytes = (end as usize).wrapping_sub(begin as usize);
+				tracing::info!("mapper set: begin={begin:p} end={end:p} bytes={bytes:#x}");
+				// for i in 0..((bytes / 8).min(8)) {
+				// 	let e = unsafe { *begin.add(i) } as *const usize;
+				// 	if e.is_null() {
+				// 		tracing::info!("mapper[{i}]: null");
+				// 		continue;
+				// 	}
+				// 	unsafe {
+				// 		log_vtable(&format!("mapper[{i}]"), e);
+				// 		log_qwords(&format!("mapper[{i}] raw"), e, 8);
+				// 	}
+				// }
+
+				let m = unsafe { *begin } as *const usize;                    // mapper[0]
+				let vbegin = unsafe { *m.add(3) } as *const usize;            // +0x18
+				let vend   = unsafe { *m.add(4) } as *const usize;            // +0x20
+				let n = ((vend as usize).wrapping_sub(vbegin as usize) / 8).min(32);
+				tracing::info!("MapperImpl vec A: begin={vbegin:p} end={vend:p} n={n}");
+
+				// for i in 0..n {
+				// 	let e = unsafe { *vbegin.add(i) } as *const usize;
+				// 	if !unsafe { readable(e.cast(), 0x40) } {
+				// 		tracing::info!("A[{i}] = {e:p} (null or not readable)");
+				// 		continue;
+				// 	}
+				// 	unsafe {
+				// 		log_vtable(&format!("A[{i}]"), e);
+				// 		log_qwords(&format!("A[{i}] raw"), e, 8);
+				// 	}
+				// }
+				// unsafe { log_qwords("MapperImpl raw", m, 16) }; // also shows container B
+				//
+				// let base = GetModuleHandleW(std::ptr::null()) as usize;
+				// if readable(m.add(15).cast(), 24) {
+				// 	let (bb, be) = (*m.add(7) as *const usize,  *m.add(8) as *const usize);
+				// 	let (cb, ce) = (*m.add(11) as *const usize, *m.add(12) as *const usize);
+				// 	let (db, de) = (*m.add(15) as *const usize, *m.add(16) as *const usize);
+				// 	dump_vec("B", bb, be, base);
+				// 	dump_vec("C", cb, ce, base);
+				// 	dump_vec("D", db, de, base); // D is a guess: it may not be a vector
+				// }
+
+				let bb = *m.add(7);
+				let be = *m.add(8);
+				// log_group_counts("B", bb as *const usize, be as *const usize);
+				let pairs = collect_pairs(bb as *const usize, be as *const usize);
+
+				if let Some(idx) = pad.input_type_group.as_ref().find(&UserInputKey::SwitchSpell)
+					.and_then(|itg| pad.key_assign.as_ref().get_virtual_input_index(itg.mapped_input_list[0])) {
+					for (_, code) in pairs.iter().filter(|(p_idx, _)| *p_idx == idx) {
+						tracing::info!("decoded = {:?}", decode(*code));
+					}
+					// let ssk = pad.input_type_group.as_ref().find(&UserInputKey::SwitchSpell)
+					// 	.and_then(|itg| pad.key_assign.as_ref().get_virtual_input_index(itg.mapped_input_list[0]))
+					// 	.and_then(|idx| pairs.iter().find(|(p_idx, _)| p_idx == &idx))
+					// 	.map(|(_, code)| *code);
+					// tracing::info!("ssk={ssk:?}");
+					// if let Some(ssk) = ssk {
+					// 	tracing::info!("decode={:?}", decode(ssk));
+					// }
+				}
+			}
+		}
+	}
 
 	let settings = Settings::read_or_default();
 
-	if (settings.spells_key.to_lowercase() == "ingame" ||
-		settings.spells_button.to_lowercase() == "ingame") &&
+	if (settings.spells_key.to_lowercase() == "ingame"/* ||
+		settings.spells_button.to_lowercase() == "ingame"*/) &&
 		pad.is_some_and(|pad| pad.poll_digital_input(UserInputKey::SwitchSpell)) {
 
 		return WheelType::Spells;
 	}
-	if (settings.quick_items_key.to_lowercase() == "ingame" ||
-		settings.quick_items_button.to_lowercase() == "ingame") &&
+	if (settings.quick_items_key.to_lowercase() == "ingame"/* ||
+		settings.quick_items_button.to_lowercase() == "ingame"*/) &&
 		pad.is_some_and(|pad| pad.poll_digital_input(UserInputKey::SwitchItem)) {
 
 		return WheelType::QuickItems;
@@ -59,22 +144,22 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 
 	let spells = (
 		WheelType::Spells,
-		PREV_BUTTON_SPELLS.lock(), settings.spells_button.clone(), XINPUT_GAMEPAD_DPAD_UP,
+		// PREV_BUTTON_SPELLS.lock(), settings.spells_button.clone(), XINPUT_GAMEPAD_DPAD_UP,
 		PREV_KEY_SPELLS.lock(), settings.spells_key.clone(), VK_TAB,
 	);
 	let quick_items = (
 		WheelType::QuickItems,
-		PREV_BUTTON_QUICK_ITEMS.lock(), settings.quick_items_button.clone(), XINPUT_GAMEPAD_DPAD_DOWN,
+		// PREV_BUTTON_QUICK_ITEMS.lock(), settings.quick_items_button.clone(), XINPUT_GAMEPAD_DPAD_DOWN,
 		PREV_KEY_QUICK_ITEMS.lock(), settings.quick_items_key.clone(), VK_CAPITAL,
 	);
 	for (
 		wheel_type,
-		prev_button, button, raw_button_default,
+		// prev_button, button, raw_button_default,
 		prev_key, key, raw_key_default,
 	) in [spells, quick_items] {
-		if let Some(value) = is_wheel_open_button_pressed(&settings, wheel_type, prev_button, button, raw_button_default) {
-			return value;
-		}
+		// if let Some(value) = is_wheel_open_button_pressed(&settings, wheel_type, prev_button, button, raw_button_default) {
+		// 	return value;
+		// }
 
 		if let Some(value) = is_wheel_open_key_pressed(wheel_type, prev_key, key, &raw_key_default) {
 			return value;
@@ -131,24 +216,10 @@ pub fn is_game_focused() -> bool {
     }
 }
 
-type GenFn = unsafe extern "C" fn(usize, usize, usize, usize) -> usize;
+type GenericHookFn = unsafe extern "C" fn(usize, usize, usize, usize) -> usize;
 
-lazy_static!(
-	static ref DISABLE_VANILLA_SWITCH: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-	static ref DEBUG_LOG: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
-);
-
-pub fn set_disable_vanilla_switch(on: bool) {
-	DISABLE_VANILLA_SWITCH.store(on, Ordering::Relaxed);
-}
-
-pub fn set_debug_log(on: bool) {
-	DEBUG_LOG.store(on, Ordering::Relaxed);
-}
-
-
-const INPUT_CHECK_78: &[u8] = &[0x4C, 0x8B, 0xDC, 0x48, 0x83, 0xEC, 0x78, 0x49, 0xC7, 0x43, 0xA8];
-const SWITCH_HOLD: &[u8] = &[0x4C, 0x8B, 0xDC, 0x48, 0x81, 0xEC, 0x88, 0x00, 0x00, 0x00, 0x49, 0xC7, 0x43, 0x98];
+const INPUT_CHECK_PREFIX: &[u8] = &[0x4C, 0x8B, 0xDC, 0x48, 0x83, 0xEC, 0x78, 0x49, 0xC7, 0x43, 0xA8];
+const SWITCH_HOLD_PREFIX: &[u8] = &[0x4C, 0x8B, 0xDC, 0x48, 0x81, 0xEC, 0x88, 0x00, 0x00, 0x00, 0x49, 0xC7, 0x43, 0x98];
 
 struct Target {
 	name: &'static str,
@@ -158,240 +229,391 @@ struct Target {
 	/// The hold check is one function shared by several actions, with the
 	/// action id as its second argument (13 = spell, 14 = item).
 	ids: Option<&'static [u32]>,
+	suppression_type: SuppressionType,
 }
 
-const TARGETS: &[Target] = &[
+enum SuppressionType {
+	Spell,
+	Item,
+	Both,
+}
+
+const NUM_HOOKS: usize = 5;
+const TARGETS: [Target; NUM_HOOKS] = [
 	// tap -> next slot
-	Target { name: "SwitchSpell request", rva: 0x759120, prefix: INPUT_CHECK_78, ids: None },
-	Target { name: "SwitchItem request",  rva: 0x7590B0, prefix: INPUT_CHECK_78, ids: None },
-	// held repeat
-	Target { name: "SwitchSpell repeat",  rva: 0x759680, prefix: INPUT_CHECK_78, ids: None },
-	Target { name: "SwitchItem repeat",   rva: 0x7593D0, prefix: INPUT_CHECK_78, ids: None },
+	Target {
+		name: "Switch Spell request",
+		rva: 0x759120,
+		prefix: INPUT_CHECK_PREFIX,
+		ids: None,
+		suppression_type: SuppressionType::Spell,
+	},
+	Target {
+		name: "Switch Item request",
+		rva: 0x7590B0,
+		prefix: INPUT_CHECK_PREFIX,
+		ids: None,
+		suppression_type: SuppressionType::Spell,
+	},
+	// hold -> return to first slot
+	Target {
+		name: "Switch Spell hold",
+		rva: 0x759680,
+		prefix: INPUT_CHECK_PREFIX,
+		ids: None,
+		suppression_type: SuppressionType::Item,
+	},
+	Target {
+		name: "Switch Item hold",
+		rva: 0x7593D0,
+		prefix: INPUT_CHECK_PREFIX,
+		ids: None,
+		suppression_type: SuppressionType::Item,
+	},
 	// hold -> previous slot (shared function, filtered by action id)
-	Target { name: "Switch hold",         rva: 0x759270, prefix: SWITCH_HOLD,    ids: Some(&[13, 14]) },
+	Target {
+		name: "Switch Spell / Item hold",
+		rva: 0x759270,
+		prefix: SWITCH_HOLD_PREFIX,
+		ids: Some(&[13, 14]),
+		suppression_type: SuppressionType::Both,
+	},
 ];
 
-const NUM_HOOKS: usize = 8;
-static HOOKS: [OnceLock<GenericDetour<GenFn>>; NUM_HOOKS] = [const { OnceLock::new() }; NUM_HOOKS];
-static NAMES: [OnceLock<&'static str>; NUM_HOOKS] = [const { OnceLock::new() }; NUM_HOOKS];
+static HOOKS: [OnceLock<GenericDetour<GenericHookFn>>; NUM_HOOKS] = [const { OnceLock::new() }; NUM_HOOKS];
 
-unsafe extern "C" fn detour<const I: usize>(a: usize, b: usize, c: usize, d: usize) -> usize {
-	if DISABLE_VANILLA_SWITCH.load(Ordering::Relaxed) {
-		let hit = match TARGETS.get(I).and_then(|t| t.ids) {
-			None => true,
-			Some(ids) => ids.contains(&(b as u32)),
-		};
-		if hit {
-			return 0;
-		}
+unsafe extern "C" fn generic_hook<const I: usize>(a: usize, b: usize, c: usize, d: usize) -> usize {
+	let hit = match TARGETS.get(I).and_then(|t| t.ids) {
+		None => true,
+		Some(ids) => ids.contains(&(b as u32)),
+	};
+	if hit {
+		return 0;
 	}
 
 	let res = HOOKS[I].get().unwrap().call(a, b, c, d);
 
-	if DEBUG_LOG.load(Ordering::Relaxed) && (res & 0xFF) != 0 {
-		tracing::info!(
-            "{} (arg2={b}) returned {res:#x}",
-            NAMES[I].get().copied().unwrap_or("?")
-        );
-	}
 	res
 }
 
-const DETOURS: [GenFn; NUM_HOOKS] = [
-	detour::<0>, detour::<1>, detour::<2>, detour::<3>, detour::<4>, detour::<5>, detour::<6>, detour::<7>
+const HOOK_FNS: [GenericHookFn; NUM_HOOKS] = [
+	generic_hook::<0>, generic_hook::<1>, generic_hook::<2>, generic_hook::<3>, generic_hook::<4>
 ];
 
 fn module_base() -> usize {
 	unsafe { GetModuleHandleW(std::ptr::null()) as usize }
 }
 
-pub unsafe fn install_all() -> usize {
-	let base = module_base();
-	let mut ok = 0;
+pub fn install_io_hooks() {
+	unsafe {
+		let base = module_base();
 
-	for (i, target) in TARGETS.iter().enumerate().take(NUM_HOOKS) {
-		if HOOKS[i].get().is_some() {
-			continue;
-		}
-
-		let addr = base + target.rva;
-
-		let bytes = std::slice::from_raw_parts(addr as *const u8, target.prefix.len());
-		if bytes != target.prefix {
-			tracing::warn!(
-				"Couldn't hook {}: prologue mismatch at rva {:#x}: Expected 0x{}, found 0x{}",
-				target.name, target.rva,
-				target.prefix.iter().map(|b| format!("{b:#02x}")).collect::<String>(),
-				bytes.iter().map(|b| format!("{b:#02x}")).collect::<String>()
-			);
-			continue;
-		}
-
-		let target_fn: GenFn = mem::transmute::<usize, GenFn>(addr);
-		let detour = match GenericDetour::<GenFn>::new(target_fn, DETOURS[i]) {
-			Ok(detour) => detour,
-			Err(err) => {
-				tracing::warn!("Couldn't hook {}: create failed: {err}", target.name);
+		for (i, target) in TARGETS.iter().enumerate() {
+			if HOOKS[i].get().is_some() {
 				continue;
 			}
-		};
 
-		let _ = NAMES[i].set(target.name);
-		let _ = HOOKS[i].set(detour);
+			let addr = base + target.rva;
 
-		match HOOKS[i].get().unwrap().enable() {
-			Ok(()) => {
-				ok += 1;
-				tracing::info!("{} hooked", target.name);
+			let bytes = std::slice::from_raw_parts(addr as *const u8, target.prefix.len());
+			if bytes != target.prefix {
+				let expected: String = target.prefix.iter().map(|b| format!("{b:#02x}")).collect();
+				let found: String = bytes.iter().map(|b| format!("{b:#02x}")).collect();
+				tracing::warn!(
+					"Couldn't hook {}: prologue mismatch at rva {:#x}: Expected 0x{expected}, found 0x{found}",
+					target.name, target.rva,
+				);
+				continue;
 			}
-			Err(e) => tracing::warn!("{}: enable failed: {e}", target.name),
-		}
-	}
-	ok
-}
 
-/// Disable all hooks. Call before the DLL unloads.
-pub unsafe fn uninstall_all() {
-	for h in HOOKS.iter().filter_map(|h| h.get()) {
-		let _ = unsafe { h.disable() };
-	}
-}
-
-// ---- usage -----------------------------------------------------------------
-//
-//   unsafe { switch_hooks::install_all() };
-//
-//   // first run: see which checks fire for which button
-//   switch_hooks::set_debug_log(true);
-//
-//   // when the "use in-game key bindings" option is on:
-//   switch_hooks::set_disable_vanilla_switch(true);
-
-/*
-// lazy_static!(
-// 	// static ref PREV_CONTROLS: Arc<RwLock<[Option<InputTypeGroup>; 4]>> = Arc::new(RwLock::new([None; 4]));
-// 	static ref BYTE_SNAPSHOTS: Arc<RwLock<HashMap<String, Vec<u8>>>> = Arc::new(RwLock::new(HashMap::new()));
-// );
-//
-// unsafe fn snapshot<T>(location: &T) -> Vec<u8> {
-// 	std::slice::from_raw_parts(location as *const T as *const u8, 200).to_vec()
-// }
-//
-// unsafe fn store_snapshot<T>(name: &str, location: &T) {
-// 	let snapshot = snapshot(location);
-// 	let mut map = BYTE_SNAPSHOTS.write().expect("Couldn't acquire BYTE_SNAPSHOTS");
-// 	let prev = map.get(&format!("{name} {location:p}"));
-// 	if let Some(prev) = prev {
-// 		let mut diffs = String::new();
-// 		for (i, (a, b)) in prev.iter().zip(snapshot.iter()).enumerate() {
-// 			if a != b {
-// 				diffs.push_str(&format!("{i}: {a} -> {b}  "));
-// 			}
-// 		}
-// 		if !diffs.is_empty() {
-// 			tracing::info!("Diff {name} {location:p}:");
-// 			tracing::info!("  {diffs}");
-// 		}
-// 	}
-// 	map.insert(format!("{name} {location:p}"), snapshot);
-// }
-
-pub fn dbg_controls() {
-	unsafe {
-		let Some(pad_man) = FD4PadManager::instance().ok() else {
-			return;
-		};
-		for (i, device) in pad_man.pad_device_list.iter().enumerate() {
-			let device = device.as_ref();
-			let multi = device.virtual_multi_device.as_ref();
-			let vid = &multi.virtual_input_data;
-			let bitset = std::slice::from_raw_parts(vid.dynamic_bitset.bitset.as_ptr(), vid.dynamic_bitset.integer_count);
-			let mut str = format!("  Device {i} Bitset: ");
-			for uint in bitset {
-				str.push_str(&format!("{uint:b}"));
-			}
-			add_to_screen_debug(str);
-		}
-	}
-}
-
-fn dbg_controls_old() {
-	unsafe {
-		if let Some(pad_man) = FD4PadManager::instance().ok() {
-			let Some(pad) = pad_man.get_in_game_pad() else {
-				return;
+			let target_fn: GenericHookFn = mem::transmute::<usize, GenericHookFn>(addr);
+			let detour = match GenericDetour::<GenericHookFn>::new(target_fn, HOOK_FNS[i]) {
+				Ok(detour) => detour,
+				Err(err) => {
+					tracing::warn!("Couldn't hook {}: create failed: {err}", target.name);
+					continue;
+				}
 			};
-			// run_every!("switch ddddddd" every Duration::from_secs(3) => {
-			// 	pad.allow_polling = !pad.allow_polling;
-			// });
-			// pad.input_code_check
-			// add_to_screen_debug(format!("Polling: {}", pad.allow_polling));
-			let vid = &pad.pad_device.as_ref().virtual_multi_device.as_ref().virtual_input_data;
-			for (i, key_assign) in pad_man.key_assign_map_list.iter().enumerate() {
-				let key_assign = key_assign.as_ref();
-				add_to_screen_debug(format!("  {i}:"));
-				for (j, entry) in key_assign.iter().enumerate() {
-					add_to_screen_debug(format!("    {j}: {}={:p}", entry.first, entry.second));
-					if let Some(itg) = pad.input_type_group.as_ref().find(&UserInputKey::SwitchSpell) {
-						add_to_screen_debug(format!("     itg: {itg:?}"));
-						if let Some(idx) = entry
-							.second
-							.as_ref()
-							.virtual_input_data_index_map
-							.as_ref()
-							.find(&itg.mapped_input_list[0]) {
-							add_to_screen_debug(format!("     idk: {}", vid.get_digital(*idx as usize)));
-						}
-					}
-					for (l, entry) in entry.second.as_ref().virtual_input_data_index_map.as_ref().iter().enumerate() {
-						add_to_screen_debug(format!("      {l}: {}={}={}", entry.first, entry.second, vid.get_digital(entry.second as usize)));
+
+			let _ = HOOKS[i].set(detour);
+
+			match HOOKS[i].get().unwrap().enable() {
+				Ok(()) => tracing::info!("{} hooked", target.name),
+				Err(e) => tracing::warn!("{}: enable failed: {e}", target.name),
+			}
+		}
+	}
+}
+
+pub fn uninstall_io_hooks() {
+	unsafe {
+		for h in HOOKS.iter().filter_map(|h| h.get()) {
+			let _ = h.disable();
+		}
+	}
+}
+
+pub mod dbg_hook {
+	//! Temporary probe: find out which object answers the HUD's action queries.
+	//!
+	//! Hooks FUN_14075e2d0 (RVA 0x75E2D0), the body of the lambda the switch-check
+	//! wrappers build. Per Ghidra it does:
+	//!
+	//!     X = *(pad + 0x10);
+	//!     return X->vtable[+0x28](X, *(int*)(lambda + 8), lambda + 0xc);
+	//!
+	//! This logs, once per distinct (action id, X's vtable), which vtable answers
+	//! each action. Then in Ghidra: Go To (G) `0x140000000 + <vtable rva>` to read
+	//! the class name, and open the function at `<slot5 rva>`.
+	//!
+	//! Read-only: it never changes arguments or the result. Remove it when done.
+	//!
+	//! Before using it: in Ghidra, select the first few instructions of
+	//! FUN_14075e2d0, right click > Copy Special > Byte String, and paste the
+	//! bytes into PROLOGUE below (about 8-10 bytes). It refuses to hook if empty
+	//! or if the bytes don't match.
+
+	use std::{collections::HashSet, sync::{Mutex, OnceLock}};
+
+	use retour::GenericDetour;
+	use windows::Win32::System::Memory::{VirtualQuery, MEMORY_BASIC_INFORMATION, MEM_COMMIT, PAGE_NOACCESS, PAGE_GUARD};
+	use windows::Win32::UI::Input::KeyboardAndMouse::{MapVirtualKeyW, MAPVK_VSC_TO_VK_EX};
+	use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+
+	type LambdaCall = unsafe extern "C" fn(lambda: *const u8, pad: *const u8) -> usize;
+
+	const RVA: usize = 0x75E2D0;
+	const PROLOGUE: &[u8] = &[0x44, 0x8b, 0x49, 0x08, 0x4c, 0x8b, 0xc1, 0x48, 0x8b];
+
+	static HOOK: OnceLock<GenericDetour<LambdaCall>> = OnceLock::new();
+	static SEEN: Mutex<Option<HashSet<(i32, usize)>>> = Mutex::new(None);
+
+	fn module_base() -> usize {
+		unsafe { GetModuleHandleW(std::ptr::null()) as usize }
+	}
+
+	pub unsafe fn log_qwords(label: &str, p: *const usize, count: usize) {
+		for i in 0..count {
+			tracing::info!("{label}[{i}] = {:#x}", *p.add(i));
+		}
+	}
+
+	pub unsafe fn dump_vec(label: &str, begin: *const usize, end: *const usize, base: usize) {
+		if begin.is_null() || end < begin { return; }
+		let n = ((end as usize - begin as usize) / 8).min(256);
+		tracing::info!("{label}: n={n}");
+		for i in 0..n {
+			let raw = *begin.add(i);
+			let e = raw as *const usize;
+			if readable(e.cast(), 0x20) {
+				tracing::info!(
+                "{label}[{i}] ptr={raw:#x} vt=base+{:#x} q1={:#x} q2={:#x} q3={:#x}",
+                (*e).wrapping_sub(base), *e.add(1), *e.add(2), *e.add(3)
+            );
+			} else {
+				tracing::info!("{label}[{i}] raw={raw:#x} (not a readable pointer)");
+			}
+		}
+	}
+
+	pub unsafe fn readable(p: *const u8, len: usize) -> bool {
+		if p.is_null() { return false; }
+		let mut mbi: MEMORY_BASIC_INFORMATION = std::mem::zeroed();
+		let sz = size_of::<MEMORY_BASIC_INFORMATION>();
+		if VirtualQuery(Some(p.cast()), &mut mbi, sz) == 0 { return false; }
+		let end = mbi.BaseAddress as usize + mbi.RegionSize;
+		mbi.State == MEM_COMMIT
+			&& mbi.Protect.0 & (PAGE_NOACCESS.0 | PAGE_GUARD.0) == 0
+			&& p as usize + len <= end
+	}
+
+	pub unsafe fn is_readable(p: *const u8, len: usize) -> bool {
+		if p.is_null() {
+			return false;
+		}
+		let mut mbi: MEMORY_BASIC_INFORMATION = std::mem::zeroed();
+		let sz = size_of::<MEMORY_BASIC_INFORMATION>();
+		if VirtualQuery(Some(p.cast()), &mut mbi, sz) == 0 {
+			return false;
+		}
+		let end = mbi.BaseAddress as usize + mbi.RegionSize;
+		mbi.State == MEM_COMMIT
+			&& mbi.Protect.0 & (PAGE_NOACCESS.0 | PAGE_GUARD.0) == 0
+			&& p as usize + len <= end
+	}
+
+	/// Read (a, b) from every element of a pointer vector [begin, end).
+	/// Skips elements that aren't readable.
+	pub unsafe fn collect_pairs(begin: *const usize, end: *const usize) -> Vec<(i32, i32)> {
+		let mut out = Vec::new();
+		if begin.is_null() || end < begin {
+			return out;
+		}
+		let n = ((end as usize - begin as usize) / 8).min(1024);
+		for i in 0..n {
+			let e = *begin.add(i) as *const i32;
+			if is_readable(e.cast(), 0x10) {
+				out.push((*e.add(2), *e.add(3))); // +0x08 and +0x0C
+			}
+		}
+		out
+	}
+
+	/// Log the pairs sorted, one per line, with no pointers in them, so two
+	/// snapshots (before / after a rebind) can be compared with any text diff tool.
+	pub unsafe fn log_pairs(label: &str, begin: *const usize, end: *const usize) {
+		let mut pairs = collect_pairs(begin, end);
+		pairs.sort_unstable();
+		tracing::info!("{label}: {} pairs", pairs.len());
+		for (a, b) in pairs {
+			tracing::info!("{label} pair {a} {b}");
+		}
+	}
+
+	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+	pub enum PadButton {
+		DpadUp, DpadDown, DpadLeft, DpadRight,
+		Start, Back, L3, R3,
+		LB, RB, A, B, X, Y,
+	}
+
+	const PAD_ORDER: [PadButton; 14] = [
+		PadButton::DpadUp, PadButton::DpadDown, PadButton::DpadLeft, PadButton::DpadRight,
+		PadButton::Start, PadButton::Back, PadButton::L3, PadButton::R3,
+		PadButton::LB, PadButton::RB, PadButton::A, PadButton::B, PadButton::X, PadButton::Y,
+	];
+
+	// VK_UP, VK_PRIOR, VK_LEFT, VK_RIGHT, VK_END, VK_DOWN, VK_NEXT, VK_INSERT, VK_DELETE
+	const NAV_VK: [u32; 9] = [0x26, 0x21, 0x25, 0x27, 0x23, 0x28, 0x22, 0x2D, 0x2E];
+
+	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+	pub enum Physical {
+		/// 0 = left, 1 = right, 2 = middle (assumed), 3 = button 4 (seen).
+		Mouse(u8),
+		Pad(PadButton),
+		/// `vk` is the Windows virtual-key code when it can be derived.
+		Key { vk: Option<u32> },
+		Unknown(i32),
+	}
+
+	pub fn decode(code: i32) -> Physical {
+		match code {
+			0..=7 => Physical::Mouse(code as u8),
+			40..=53 => Physical::Pad(PAD_ORDER[(code - 40) as usize]),
+			70..=189 => Physical::Key { vk: dik_to_vk((code - 69) as u32) },
+			190..=198 => Physical::Key { vk: Some(NAV_VK[(code - 190) as usize]) },
+			_ => Physical::Unknown(code),
+		}
+	}
+
+	/// Everything bound to one virtual input index, decoded.
+	pub fn bindings_for(pairs: &[(i32, i32)], virtual_index: i32) -> Vec<Physical> {
+		physical_for(pairs, virtual_index).into_iter().map(decode).collect()
+	}
+
+	pub unsafe fn log_group_counts(label: &str, begin: *const usize, end: *const usize) {
+		use std::collections::BTreeMap;
+
+		let mut by_index: BTreeMap<i32, Vec<i32>> = BTreeMap::new();
+		for (a, b) in collect_pairs(begin, end) {
+			by_index.entry(a).or_default().push(b);
+		}
+
+		let mut counts: BTreeMap<Vec<i32>, usize> = BTreeMap::new();
+		for (_, mut codes) in by_index {
+			codes.sort_unstable();
+			*counts.entry(codes).or_default() += 1;
+		}
+		for (codes, n) in counts {
+			tracing::info!("{label} group {codes:?} x{n}");
+		}
+	}
+
+	/// All physical codes bound to one virtual input index.
+	pub fn physical_for(pairs: &[(i32, i32)], virtual_index: i32) -> Vec<i32> {
+		pairs
+			.iter()
+			.filter(|(a, _)| *a == virtual_index)
+			.map(|(_, b)| *b)
+			.collect()
+	}
+
+	/// Convert a DirectInput-style scancode to a Windows virtual-key code.
+	/// DirectInput sets 0x80 on extended keys (arrows, right Ctrl/Alt, numpad
+	/// Enter, ...); MapVirtualKey wants an 0xE0 prefix for those.
+	pub fn dik_to_vk(dik: u32) -> Option<u32> {
+		let sc = if dik & 0x80 != 0 { 0xE000 | (dik & 0x7F) } else { dik };
+		let vk = unsafe { MapVirtualKeyW(sc, MAPVK_VSC_TO_VK_EX) };
+		(vk != 0).then_some(vk)
+	}
+
+	pub(crate) unsafe fn log_vtable(label: &str, obj: *const usize) {
+		if obj.is_null() {
+			tracing::info!("{label}: null");
+			return;
+		}
+		let base = GetModuleHandleW(std::ptr::null()) as usize;
+		let vtable = *obj; // the first qword of a C++ object is its vtable pointer
+		let rva = vtable.wrapping_sub(base);
+		tracing::info!("{label}: obj={obj:p} vtable=base+{rva:#x} (Ghidra: {:#x})", 0x1_4000_0000 + rva);
+	}
+
+	unsafe extern "C" fn detour(lambda: *const u8, pad: *const u8) -> usize {
+		if !lambda.is_null() && !pad.is_null() {
+			let id = unsafe { *(lambda.add(8) as *const i32) };
+			let x = unsafe { *(pad.add(0x10) as *const *const usize) };
+			if !x.is_null() {
+				let vtable = unsafe { *x };
+				let slot5 = unsafe { *((vtable + 0x28) as *const usize) };
+				let base = module_base();
+
+				// try_lock: never block the game thread on our logging.
+				if let Ok(mut seen) = SEEN.try_lock() {
+					if seen.get_or_insert_with(HashSet::new).insert((id, vtable)) {
+						tracing::info!(
+                        "action id {id}: X={x:p} vtable=base+{:#x} slot5=base+{:#x}",
+                        vtable.wrapping_sub(base),
+                        slot5.wrapping_sub(base),
+                    );
 					}
 				}
 			}
-			// let key_assign = pad.key_assign.as_ref();
-			// if (key_assign as *const _) as usize == 0 || key_assign as *const _ as usize % 8 != 0 { tracing::warn!("key_assign bad: {key_assign:p}"); return; }
-			// let input_mapper_ptr_ptr = pad.key_assign.add(size_of::<usize>() * 2).as_ptr() as *const usize;
-			// if (input_mapper_ptr_ptr as *const _) as usize == 0 || input_mapper_ptr_ptr as *const _ as usize % 8 != 0 { tracing::warn!("input_mapper_ptr_ptr bad: {input_mapper_ptr_ptr:p}"); return; }
-			// let input_mapper_ptr = *input_mapper_ptr_ptr as *const ();
-			// if (input_mapper_ptr as *const _) as usize == 0 || input_mapper_ptr as *const _ as usize % 8 != 0 { tracing::warn!("input_mapper_ptr bad: {input_mapper_ptr:p}"); return; }
-			// let input_mapper = input_mapper_ptr.as_ref_unchecked();
-			// if (input_mapper as *const _) as usize == 0 || input_mapper as *const _ as usize % 8 != 0 { tracing::warn!("input_mapper bad: {input_mapper:p}"); return; }
-			//
-			// store_snapshot("key assign", key_assign);
-			// store_snapshot("input mapper", input_mapper);
-			// for pad_device in pad_man.pad_device_list.iter() {
-			// 	let pad_device = pad_device.as_ref();
-			// 	if (pad_device as *const _) as usize == 0 || pad_device as *const _ as usize % 8 != 0 { tracing::warn!("pad_device bad: {pad_device:p}"); return; }
-			// 	let virtual_multi_device = pad_device.virtual_multi_device.as_ref();
-			// 	if (virtual_multi_device as *const _) as usize == 0 || virtual_multi_device as *const _ as usize % 8 != 0 { tracing::warn!("virtual_multi_device bad: {virtual_multi_device:p}"); return; }
-			// 	let virtual_input_data = &pad_device.virtual_multi_device.as_ref().virtual_input_data;
-			// 	if (virtual_input_data as *const _) as usize == 0 || virtual_input_data as *const _ as usize % 8 != 0 { tracing::warn!("virtual_input_data bad: {virtual_input_data:p}"); return; }
-			//
-			// 	store_snapshot("pad device", pad_device);
-			// 	store_snapshot("virtual multi device", virtual_multi_device);
-			// 	store_snapshot("virtual input data", virtual_input_data);
-			// }
-			// run_every!("Sonion ring" every Duration::from_secs(1) => {
-			// 	let key_assign = pad.key_assign.as_ref();
-			// 	let x = key_assign.virtual_input_data_index_map.as_ref().find(&811);
-			// 	let y = key_assign.virtual_input_data_index_map.as_ref().find(&815);
-			// 	tracing::info!("zeppelin ecato mexico mertad: {x:?} {y:?}");
-			// });
-			// let type_group = unsafe { pad.input_type_group.as_ref() };
-			// let mut prev_controls = PREV_CONTROLS.write().expect("Couldn't acquire PREV_CONTROLS");
-			// let controls = [
-			// 	type_group.find(&UserInputKey::SwitchItem).cloned(),
-			// 	type_group.find(&UserInputKey::SwitchItem2).cloned(),
-			// 	type_group.find(&UserInputKey::SwitchSpell).cloned(),
-			// 	type_group.find(&UserInputKey::SwitchSpell2).cloned(),
-			// ];
-			// for i in 0..4 {
-			// 	if mem::transmute::<Option<InputTypeGroup>, [u128; 2]>(prev_controls[i]) !=
-			// 		mem::transmute::<Option<InputTypeGroup>, [u128; 2]>(controls[i]) {
-			// 		tracing::info!("Different {i}: {:?}", controls[i]);
-			// 	}
-			// }
-			// *prev_controls = controls;
+		}
+		unsafe { HOOK.get().unwrap().call(lambda, pad) }
+	}
+
+	pub unsafe fn install() -> bool {
+		if PROLOGUE.is_empty() {
+			tracing::warn!("probe: PROLOGUE is empty, paste the bytes from Ghidra first");
+			return false;
+		}
+
+		let addr = module_base() + RVA;
+		let bytes = unsafe { std::slice::from_raw_parts(addr as *const u8, PROLOGUE.len()) };
+		if bytes != PROLOGUE {
+			tracing::warn!("probe: prologue mismatch at rva {RVA:#x}, skipping");
+			tracing::warn!("  expected: {PROLOGUE:?}");
+			tracing::warn!("  found:    {bytes:?}");
+			return false;
+		}
+
+		let target: LambdaCall = unsafe { std::mem::transmute::<usize, LambdaCall>(addr) };
+		let d = match unsafe { GenericDetour::<LambdaCall>::new(target, detour) } {
+			Ok(d) => d,
+			Err(e) => {
+				tracing::warn!("probe: create failed: {e}");
+				return false;
+			}
+		};
+
+		// Publish before enabling, same as the main hooks.
+		let _ = HOOK.set(d);
+		unsafe { HOOK.get().unwrap().enable().is_ok() }
+	}
+
+	pub unsafe fn uninstall() {
+		if let Some(h) = HOOK.get() {
+			let _ = unsafe { h.disable() };
 		}
 	}
-}*/
+}

@@ -6,6 +6,7 @@ use lazy_static::lazy_static;
 use std::fs::{read_to_string, write};
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 use std::time::Duration;
+use serde::{Deserialize, Deserializer};
 use crate::paths;
 
 macro_rules! settings {
@@ -70,9 +71,7 @@ macro_rules! settings {
 settings!(
     spells_key: String,
     quick_items_key: String,
-    spells_button: String,
-    quick_items_button: String,
-    using_controller: bool,
+    using_controller: UsingController,
     style: String,
     highlight_time: f32,
     highlight_expansion: f32,
@@ -95,23 +94,35 @@ settings!(
 );
 
 pub fn spells_key() -> String {
-    "TAB".to_string()
+    "INGAME".to_string()
 }
 
 pub fn quick_items_key() -> String {
-    "CAPITAL".to_string()
+    "INGAME".to_string()
 }
 
-pub fn spells_button() -> String {
-    "UP".to_string()
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
+pub enum UsingController {
+    True,
+    False,
+    Unset,
 }
 
-pub fn quick_items_button() -> String {
-    "DOWN".to_string()
+impl<'de> Deserialize<'de> for UsingController {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        Ok(match Option::<bool>::deserialize(deserializer)? {
+            Some(true) => UsingController::True,
+            Some(false) => UsingController::False,
+            None => UsingController::Unset,
+        })
+    }
 }
 
-pub const fn using_controller() -> bool {
-    false
+pub const fn using_controller() -> UsingController {
+    UsingController::Unset
 }
 
 pub const fn center_on_close() -> bool {

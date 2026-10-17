@@ -38,7 +38,7 @@ impl ListenerStatus {
 
 lazy_static!(
 	static ref PREV_TICK: Arc<Mutex<HashSet<i32>>> = Arc::new(Mutex::new(HashSet::new()));
-	static ref LISTENERS: Arc<Mutex<Vec<(Listener, ListenerStatus)>>> = Arc::new(Mutex::new(Vec::new()));
+	static ref LISTENERS: Arc<Mutex<Vec<(Option<String>, (Listener, ListenerStatus))>>> = Arc::new(Mutex::new(Vec::new()));
 );
 
 pub fn tick_listeners() {
@@ -46,7 +46,7 @@ pub fn tick_listeners() {
 	let listeners = LISTENERS.lock().expect("Couldn't acquire LISTENERS");
 
 	let mut next_tick = HashSet::new();
-	for (listener, status) in listeners.iter() {
+	for (_, (listener, status)) in listeners.iter() {
 		let keys = listener.keys();
 
 		let all_keys_previously_pressed = keys.iter().all(|key| prev_tick.contains(key));
@@ -81,6 +81,18 @@ pub fn tick_listeners() {
 pub fn setup_listener(listener: Listener) -> ListenerStatus {
 	let mut listeners = LISTENERS.lock().expect("Couldn't acquire LISTENERS");
 	let status = ListenerStatus(Arc::new(AtomicBool::new(false)));
-	listeners.push((listener, status.clone()));
+	listeners.push((None, (listener, status.clone())));
 	status
+}
+
+pub fn static_listener<F>(name: String, listener_fn: F) -> ListenerStatus where F: FnOnce() -> Listener {
+	let mut listeners = LISTENERS.lock().expect("Couldn't acquire LISTENERS");
+	if let Some((_, (_, status))) = listeners.iter()
+		.find(|(l_name, _)| l_name.as_ref().is_some_and(|l_name| l_name == &name)) {
+		status.clone()
+	} else {
+		let status = ListenerStatus(Arc::new(AtomicBool::new(false)));
+		listeners.push((Some(name), (listener_fn(), status.clone())));
+		status
+	}
 }

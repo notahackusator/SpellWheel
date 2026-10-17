@@ -7,14 +7,6 @@ spells_key = "INGAME"
 
 quick_items_key = "INGAME"
 
-# The button used to open the spell wheel on controller. The following is a list of valid values:
-# UP, DOWN, LEFT, RIGHT, A, B, X, Y, R1, R2, R3, L1, L2, L3
-# Or, write "INGAME" to use whatever the game uses.
-# They must be surrounded by double quotes.
-spells_button = "INGAME"
-
-quick_items_button = "INGAME"
-
 # Decides whether to use controller or mouse and keyboard. true for controller, false for mouse & keyboard. Default is false.
 using_controller = false
 

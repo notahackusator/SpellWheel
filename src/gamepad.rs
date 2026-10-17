@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use lazy_static::lazy_static;
 use windows::Win32::Foundation::ERROR_DEVICE_NOT_CONNECTED;
 use windows::Win32::UI::Input::XboxController::*;
+use crate::settings::{Settings, UsingController};
 
 pub type GamepadButtons = XINPUT_GAMEPAD_BUTTON_FLAGS;
 
@@ -176,8 +177,14 @@ pub fn set_latest_select_controller(latest_select_is_controller: bool) {
 }
 
 pub fn using_controller() -> bool {
-    match (controller_connected(), LATEST_SELECT_CONTROLLER.load(Ordering::Relaxed)) {
-        (ControllerConnectionStatus::Connected, true) => true,
-        _ => false,
+    match (
+        Settings::read_or_default().using_controller,
+        controller_connected(),
+        LATEST_SELECT_CONTROLLER.load(Ordering::Relaxed)
+    ) {
+        (UsingController::True, _, _) => true,
+        (UsingController::False, _, _) => false,
+        (_, ControllerConnectionStatus::Connected, true) => true,
+        (_, _, _) => false,
     }
 }
