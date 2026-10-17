@@ -2,6 +2,9 @@ use std::mem;
 use retour::GenericDetour;
 use std::sync::OnceLock;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use crate::debugging::add_to_screen_debug;
+use crate::io::bindings::{get_item_bindings, get_spell_bindings};
+use crate::settings::Settings;
 
 type GenericHookFn = unsafe extern "C" fn(usize, usize, usize, usize) -> usize;
 
@@ -19,6 +22,7 @@ struct Target {
 	suppression_type: SuppressionType,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SuppressionType {
 	Spell,
 	Item,
@@ -27,7 +31,6 @@ enum SuppressionType {
 
 const NUM_HOOKS: usize = 5;
 const TARGETS: [Target; NUM_HOOKS] = [
-	// tap -> next slot
 	Target {
 		name: "Switch Spell request",
 		rva: 0x759120,
@@ -40,24 +43,22 @@ const TARGETS: [Target; NUM_HOOKS] = [
 		rva: 0x7590B0,
 		prefix: INPUT_CHECK_PREFIX,
 		ids: None,
-		suppression_type: SuppressionType::Spell,
-	},
-	// hold -> return to first slot
-	Target {
-		name: "Switch Spell hold",
-		rva: 0x759680,
-		prefix: INPUT_CHECK_PREFIX,
-		ids: None,
 		suppression_type: SuppressionType::Item,
 	},
 	Target {
-		name: "Switch Item hold",
+		name: "Switch Spell repeat",
+		rva: 0x759680,
+		prefix: INPUT_CHECK_PREFIX,
+		ids: None,
+		suppression_type: SuppressionType::Spell,
+	},
+	Target {
+		name: "Switch Item repeat",
 		rva: 0x7593D0,
 		prefix: INPUT_CHECK_PREFIX,
 		ids: None,
 		suppression_type: SuppressionType::Item,
 	},
-	// hold -> previous slot (shared function, filtered by action id)
 	Target {
 		name: "Switch Spell / Item hold",
 		rva: 0x759270,
@@ -69,10 +70,28 @@ const TARGETS: [Target; NUM_HOOKS] = [
 static HOOKS: [OnceLock<GenericDetour<GenericHookFn>>; NUM_HOOKS] = [const { OnceLock::new() }; NUM_HOOKS];
 
 unsafe extern "C" fn generic_hook<const I: usize>(a: usize, b: usize, c: usize, d: usize) -> usize {
-	let hit = match TARGETS.get(I).and_then(|t| t.ids) {
-		None => true,
+	let settings = Settings::read_or_default();
+	let items_key_ingame = settings.quick_items_key.to_lowercase() == "ingame";
+	let spells_key_ingame = settings.spells_key.to_lowercase() == "ingame";
+
+	let items_key_pressed = get_item_bindings().pressed_status();
+	let spells_key_pressed = get_spell_bindings().pressed_status();
+
+	let target = &TARGETS[I];
+	let mut hit = match target.ids {
 		Some(ids) => ids.contains(&(b as u32)),
+		None => true,
 	};
+
+	match (hit, items_key_pressed, spells_key_pressed, items_key_ingame, spells_key_ingame) {
+		(true, _, pressed, _, false) if pressed.key() || pressed.mouse() => {
+			hit = false;
+		}
+		(true, pressed, _, false, _) if pressed.key() || pressed.mouse() => {
+			hit = false;
+		}
+		_ => {}
+	}
 	if hit {
 		return 0;
 	}

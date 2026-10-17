@@ -1,6 +1,6 @@
 use crate::debugging::{add_to_screen_debug, is_debugging, run_every, run_once};
 use crate::gamepad::{BUTTONS, gamepad_state};
-use crate::io::bindings::Bindings;
+use crate::io::bindings::{set_spell_bindings, Bindings, set_item_bindings};
 use crate::keyboard::KEYS;
 use crate::keyboard::listener::{Listener, static_listener};
 use crate::rendering::wheel_renderer::WheelType;
@@ -26,8 +26,6 @@ pub mod bindings;
 pub mod hook;
 
 lazy_static!(
-	// static ref PREV_BUTTON_SPELLS: Mutex<Option<String>> = Mutex::new(None);
-	// static ref PREV_BUTTON_QUICK_ITEMS: Mutex<Option<String>> = Mutex::new(None);
 	static ref PREV_KEY_SPELLS: Mutex<Option<String>> = Mutex::new(None);
 	static ref PREV_KEY_QUICK_ITEMS: Mutex<Option<String>> = Mutex::new(None);
 );
@@ -52,8 +50,9 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 		let bindings = Bindings::from_pad(pad);
 
 		let switch_spell = bindings.get_input_bindings(pad, &UserInputKey::SwitchSpell);
+		set_spell_bindings(switch_spell);
 		let spell_status = switch_spell.pressed_status();
-		if spell_status.key() || spell_status.mouse() && settings.spells_key.to_lowercase() == "ingame" {
+		if (spell_status.key() || spell_status.mouse()) && settings.spells_key.to_lowercase() == "ingame" {
 			return WheelType::Spells;
 		}
 		if spell_status.pad() {
@@ -61,8 +60,9 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 		}
 
 		let switch_item = bindings.get_input_bindings(pad, &UserInputKey::SwitchItem);
+		set_item_bindings(switch_item);
 		let item_status = switch_item.pressed_status();
-		if item_status.key() || item_status.mouse() && settings.quick_items_key.to_lowercase() == "ingame" {
+		if (item_status.key() || item_status.mouse()) && settings.quick_items_key.to_lowercase() == "ingame" {
 			return WheelType::QuickItems;
 		}
 		if item_status.pad() {

@@ -1,11 +1,34 @@
 use std::fmt::{Debug, Formatter};
+use std::sync::{Arc, RwLock};
 use bitfield::bitfield;
 use eldenring::cs::{CSInGamePad, UserInputKey};
+use lazy_static::lazy_static;
 use windows::Win32::UI::Input::KeyboardAndMouse::{MAPVK_VSC_TO_VK_EX, MapVirtualKeyW};
 use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_BACK, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_RIGHT, XINPUT_GAMEPAD_DPAD_UP, XINPUT_GAMEPAD_LEFT_SHOULDER, XINPUT_GAMEPAD_LEFT_THUMB, XINPUT_GAMEPAD_RIGHT_SHOULDER, XINPUT_GAMEPAD_RIGHT_THUMB, XINPUT_GAMEPAD_START, XINPUT_GAMEPAD_X, XINPUT_GAMEPAD_Y};
 use crate::gamepad::{gamepad_state, GamepadButtons};
 use crate::keyboard;
 use crate::settings::Settings;
+
+lazy_static!(
+	static ref SPELL_BINDINGS: Arc<RwLock<PhysicalKeys>> = Arc::new(RwLock::new(PhysicalKeys::none()));
+	static ref ITEM_BINDINGS: Arc<RwLock<PhysicalKeys>> = Arc::new(RwLock::new(PhysicalKeys::none()));
+);
+
+pub fn set_spell_bindings(physical_keys: PhysicalKeys) {
+	*SPELL_BINDINGS.write().expect("Couldn't acquire SPELL_BINDINGS") = physical_keys;
+}
+
+pub fn set_item_bindings(physical_keys: PhysicalKeys) {
+	*ITEM_BINDINGS.write().expect("Couldn't acquire ITEM_BINDINGS") = physical_keys;
+}
+
+pub fn get_spell_bindings() -> PhysicalKeys {
+	*SPELL_BINDINGS.read().expect("Couldn't acquire SPELL_BINDINGS")
+}
+
+pub fn get_item_bindings() -> PhysicalKeys {
+	*ITEM_BINDINGS.read().expect("Couldn't acquire ITEM_BINDINGS")
+}
 
 pub struct Bindings {
 	entries: Vec<BindingEntry>,
@@ -47,6 +70,7 @@ impl Bindings {
 	}
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalKeys {
 	pub which_present: u8,
 	pub mouse: u8,
@@ -55,6 +79,7 @@ pub struct PhysicalKeys {
 }
 
 bitfield! {
+	#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 	pub struct PressedStatus(u8);
 	pub mouse, set_mouse: 0;
 	pub pad,   set_pad:   1;
