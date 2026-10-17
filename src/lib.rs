@@ -32,6 +32,7 @@ use eldenring::util::system::wait_for_system_init;
 use fromsoftware_shared::{FromStatic, Program, SharedTaskImpExt};
 use hudhook::hooks::dx12::get_hwnd;
 use hudhook::windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
+use io::hook::{install_io_hooks, uninstall_io_hooks};
 use io::selected_wheel_type;
 use lazy_static::lazy_static;
 use rendering::render_hook::ItemWheelData;
@@ -45,12 +46,11 @@ use tracing_subscriber::fmt;
 #[cfg(feature = "extra-memory-slots-support")]
 use crate::expanded_memory_slots::SelectionResult;
 use crate::items::Item;
+use crate::keyboard::hook::install_keyboard_and_mouse_hooks;
 use crate::settings::Settings;
 use crate::settings::display_settings::display_settings_open;
 use crate::xinput_hook::{install_xinput_hook, remove_xinput_hook, set_suppress_camera};
 use keyboard::listener::tick_listeners;
-use crate::io::{install_io_hooks, uninstall_io_hooks};
-use crate::keyboard::hook::install_keyboard_and_mouse_hooks;
 
 static HMODULE: OnceLock<usize> = OnceLock::new();
 

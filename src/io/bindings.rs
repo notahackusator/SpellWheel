@@ -1,6 +1,11 @@
 use std::fmt::{Debug, Formatter};
+use bitfield::bitfield;
 use eldenring::cs::{CSInGamePad, UserInputKey};
 use windows::Win32::UI::Input::KeyboardAndMouse::{MAPVK_VSC_TO_VK_EX, MapVirtualKeyW};
+use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_BACK, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_RIGHT, XINPUT_GAMEPAD_DPAD_UP, XINPUT_GAMEPAD_LEFT_SHOULDER, XINPUT_GAMEPAD_LEFT_THUMB, XINPUT_GAMEPAD_RIGHT_SHOULDER, XINPUT_GAMEPAD_RIGHT_THUMB, XINPUT_GAMEPAD_START, XINPUT_GAMEPAD_X, XINPUT_GAMEPAD_Y};
+use crate::gamepad::{gamepad_state, GamepadButtons};
+use crate::keyboard;
+use crate::settings::Settings;
 
 pub struct Bindings {
 	entries: Vec<BindingEntry>,
@@ -45,8 +50,15 @@ impl Bindings {
 pub struct PhysicalKeys {
 	pub which_present: u8,
 	pub mouse: u8,
-	pub pad: PadButton,
+	pub pad: GamepadButtons,
 	pub key: u32,
+}
+
+bitfield! {
+	pub struct PressedStatus(u8);
+	pub mouse, set_mouse: 0;
+	pub pad,   set_pad:   1;
+	pub key,   set_key:   2;
 }
 
 impl PhysicalKeys {
@@ -54,7 +66,7 @@ impl PhysicalKeys {
 		Self {
 			which_present: 0,
 			mouse: 0,
-			pad: PadButton::DpadUp,
+			pad: GamepadButtons::default(),
 			key: 0,
 		}
 	}
@@ -64,7 +76,7 @@ impl PhysicalKeys {
 		self.mouse = mouse;
 	}
 
-	pub fn pad(&mut self, pad: PadButton) {
+	pub fn pad(&mut self, pad: GamepadButtons) {
 		self.which_present |= 0b010;
 		self.pad = pad;
 	}
@@ -72,6 +84,25 @@ impl PhysicalKeys {
 	pub fn key(&mut self, key: u32) {
 		self.which_present |= 0b100;
 		self.key = key;
+	}
+
+	pub fn pressed_status(&self) -> PressedStatus {
+		let mut ps = PressedStatus(0);
+		if self.which_present & 0b001 != 0 {
+			ps.set_mouse(keyboard::is_pressed(self.mouse as i32));
+		}
+		if self.which_present & 0b010 != 0 {
+			ps.set_pad(
+				gamepad_state().pressed_duration(Ok(self.pad))
+					.is_some_and(
+						|length| length.as_secs_f32() > Settings::read_or_default().controller_wheel_open_delay
+					)
+			);
+		}
+		if self.which_present & 0b100 != 0 {
+			ps.set_key(keyboard::is_pressed(self.key as i32));
+		}
+		ps
 	}
 }
 
@@ -151,7 +182,7 @@ impl BindingEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalInput {
 	Mouse(u8),
-	Pad(PadButton),
+	Pad(GamepadButtons),
 	Key(u32),
 	Unknown(i32),
 }
@@ -167,15 +198,9 @@ pub fn di_to_vk(di: u32) -> u32 {
 
 // VK_UP, VK_PRIOR, VK_LEFT, VK_RIGHT, VK_END, VK_DOWN, VK_NEXT, VK_INSERT, VK_DELETE
 const NAV_VK: [u32; 9] = [0x26, 0x21, 0x25, 0x27, 0x23, 0x28, 0x22, 0x2D, 0x2E];
-const PAD_ORDER: [PadButton; 14] = [
-	PadButton::DpadUp, PadButton::DpadDown, PadButton::DpadLeft, PadButton::DpadRight,
-	PadButton::Start, PadButton::Back, PadButton::L3, PadButton::R3,
-	PadButton::LB, PadButton::RB, PadButton::A, PadButton::B, PadButton::X, PadButton::Y,
+const PAD_ORDER: [GamepadButtons; 14] = [
+	XINPUT_GAMEPAD_DPAD_UP, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_RIGHT,
+	XINPUT_GAMEPAD_START, XINPUT_GAMEPAD_BACK, XINPUT_GAMEPAD_LEFT_THUMB, XINPUT_GAMEPAD_RIGHT_THUMB,
+	XINPUT_GAMEPAD_LEFT_SHOULDER, XINPUT_GAMEPAD_RIGHT_SHOULDER,
+	XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_X, XINPUT_GAMEPAD_Y,
 ];
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PadButton {
-	DpadUp, DpadDown, DpadLeft, DpadRight,
-	Start, Back, L3, R3,
-	LB, RB, A, B, X, Y,
-}
