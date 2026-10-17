@@ -1,5 +1,5 @@
 use crate::debugging::{add_to_screen_debug, is_debugging, run_every, run_once};
-use crate::gamepad::{BUTTONS, gamepad_state};
+use crate::gamepad::{gamepad_state, set_last_open_is_controller, BUTTONS};
 use crate::io::bindings::{set_spell_bindings, Bindings, set_item_bindings};
 use crate::keyboard::KEYS;
 use crate::keyboard::listener::{Listener, static_listener};
@@ -53,9 +53,11 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 		set_spell_bindings(switch_spell);
 		let spell_status = switch_spell.pressed_status();
 		if (spell_status.key() || spell_status.mouse()) && settings.spells_key.to_lowercase() == "ingame" {
+			set_last_open_is_controller(false);
 			return WheelType::Spells;
 		}
 		if spell_status.pad() {
+			set_last_open_is_controller(true);
 			return WheelType::Spells;
 		}
 
@@ -63,9 +65,11 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 		set_item_bindings(switch_item);
 		let item_status = switch_item.pressed_status();
 		if (item_status.key() || item_status.mouse()) && settings.quick_items_key.to_lowercase() == "ingame" {
+			set_last_open_is_controller(false);
 			return WheelType::QuickItems;
 		}
 		if item_status.pad() {
+			set_last_open_is_controller(true);
 			return WheelType::QuickItems;
 		}
 	}

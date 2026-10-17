@@ -71,7 +71,6 @@ macro_rules! settings {
 settings!(
     spells_key: String,
     quick_items_key: String,
-    using_controller: UsingController,
     style: String,
     highlight_time: f32,
     highlight_expansion: f32,
@@ -84,7 +83,8 @@ settings!(
     font_scale_multiplier: f32,
     icon_scale_multiplier: f32,
     radius_multiplier: f32,
-    min_radius: f32,
+    mouse_min_radius: f32,
+    controller_min_radius: f32,
     mods: Vec<String>,
     modded_spells: Vec<String>,
     await_xinput_hook: bool,
@@ -99,30 +99,6 @@ pub fn spells_key() -> String {
 
 pub fn quick_items_key() -> String {
     "INGAME".to_string()
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
-pub enum UsingController {
-    True,
-    False,
-    Unset,
-}
-
-impl<'de> Deserialize<'de> for UsingController {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>
-    {
-        Ok(match Option::<bool>::deserialize(deserializer)? {
-            Some(true) => UsingController::True,
-            Some(false) => UsingController::False,
-            None => UsingController::Unset,
-        })
-    }
-}
-
-pub const fn using_controller() -> UsingController {
-    UsingController::Unset
 }
 
 pub const fn center_on_close() -> bool {
@@ -189,8 +165,12 @@ pub const fn await_xinput_hook() -> bool {
     false
 }
 
-pub const fn min_radius() -> f32 {
+pub const fn mouse_min_radius() -> f32 {
     0.3
+}
+
+pub const fn controller_min_radius() -> f32 {
+    0.9
 }
 
 pub const fn timing_offset() -> f32 {

@@ -50,10 +50,13 @@ icon_scale_multiplier = 0.15
 # The amount to scale the item wheel radius. Default is 0.3.
 radius_multiplier = 0.3
 
-# The minimum distance to move the mouse to select items.
-# This is a fraction of the radius, so with 0.5 you have to move your mouse 50% of the radius in order to select an item.
+# The minimum distance to move the mouse to select spells / quick items.
+# This is a fraction of the radius, so with 0.5 you have to move your mouse 50% of the radius in order to select.
 # Default is 0.3.
-min_radius = 0.3
+mouse_min_radius = 0.3
+
+# Just like mouse_min_radius, but for controller. Default is 0.9.
+controller_min_radius = 0.9
 
 # Paths to directories for modded items. Empty by default.
 #

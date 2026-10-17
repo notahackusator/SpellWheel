@@ -8,23 +8,62 @@ use crate::rendering::display_item::DisplayItem;
 use crate::settings::{Settings, Style};
 use imgui::{DrawListMut, Ui};
 
-// Ok = controller pos
-// Err = cursor pos
-pub fn angle_and_dist_sqr(ui: &Ui, pos: Result<[f32; 2], [f32; 2]>) -> (f32, f32) {
-    if is_debugging() {
-        add_to_screen_debug(format!("Window focused? = {}", ui.is_window_focused()));
-        add_to_screen_debug(format!("Mouse / right stick pos: {pos:?}"));
-        add_to_screen_debug(format!("Mouse state: {:?}", get_mouse_state()));
-    }
-    let [ww, wh] = get_window_size();
-    let [dx, dy] = match pos {
-        Ok([x, y]) => [x * ww / 2.0, - y * wh / 2.0],
-        Err([x, y]) => [x - ww / 2.0, y - wh / 2.0]
-    };
-    let angle = dy.atan2(dx);
-    let dist_sqr = dx * dx + dy * dy;
+pub enum Selection {
+    Cursor {
+        angle: f32,
+        dist_sqr: f32,
+    },
+    Controller {
+        angle: f32,
+        dist_sqr: f32,
+    },
+}
 
-    (angle, dist_sqr)
+impl Selection {
+    pub fn angle(&self) -> f32 {
+        match self {
+            Selection::Cursor { angle, .. } => *angle,
+            Selection::Controller { angle, .. } => *angle,
+        }
+    }
+
+    pub fn can_select(&self) -> bool {
+        let settings = Settings::read_or_default();
+        match self {
+            Selection::Controller { dist_sqr, .. } => {
+                let min_radius_sqr = settings.controller_min_radius.powi(2);
+                *dist_sqr > min_radius_sqr
+            }
+            Selection::Cursor { dist_sqr, .. } => {
+                let [ww, wh] = get_window_size();
+                let min_radius_sqr = (
+                    settings.mouse_min_radius * settings.radius_multiplier * ww.min(wh)
+                ).powi(2);
+                *dist_sqr > min_radius_sqr
+            }
+        }
+    }
+}
+
+pub fn angle_and_dist_sqr(cursor_pos: [f32; 2], controller_pos: [f32; 2]) -> Selection {
+    let [ww, wh] = get_window_size();
+    if using_controller() {
+        let [dx, dy] = [controller_pos[0], -controller_pos[1]];
+        let angle = dy.atan2(dx);
+        let dist_sqr = controller_pos[0] * controller_pos[0] + controller_pos[1] * controller_pos[1];
+        Selection::Controller {
+            angle,
+            dist_sqr,
+        }
+    } else {
+        let [dx, dy] = [cursor_pos[0] - ww / 2.0, cursor_pos[1] - wh / 2.0];
+        let angle = dy.atan2(dx);
+        let dist_sqr = dx * dx + dy * dy;
+        Selection::Cursor {
+            angle,
+            dist_sqr,
+        }
+    }
 }
 
 pub fn closest_item_to(items: &[DisplayItem], angle: f32) -> Option<usize> {
@@ -220,26 +259,17 @@ pub fn render_wheel(items: &mut [DisplayItem], ui: &Ui, draw_list: &DrawListMut)
     }
     let settings = Settings::read_or_default();
 
-    let (controller_angle, controller_dist_sqr) = angle_and_dist_sqr(ui, Ok(gamepad_state().right_stick));
-    let (mouse_angle, mouse_dist_sqr) = angle_and_dist_sqr(ui, Err(get_mouse_state().mouse_pos()));
-    let (angle, dist_sqr) = if controller_dist_sqr > mouse_dist_sqr {
-        (controller_angle, controller_dist_sqr)
-    } else {
-        (mouse_angle, mouse_dist_sqr)
-    };
+    let selection = angle_and_dist_sqr(get_mouse_state().mouse_pos(), gamepad_state().right_stick);
 
     let [ww, wh] = get_window_size();
-    let min_radius_sqr = (
-        settings.min_radius * settings.radius_multiplier * ww.min(wh)
-    ).powi(2);
 
     // Only select closest IF far enough away from the center
-    let can_select = dist_sqr >= min_radius_sqr;
+    let can_select = selection.can_select();
     if can_select {
         for item in items.iter_mut() {
             item.is_highlighted = false;
         }
-        if let Some(closest_idx) = closest_item_to(items, angle) {
+        if let Some(closest_idx) = closest_item_to(items, selection.angle()) {
             if is_debugging() {
                 add_to_screen_debug(format!("Closest item index: {closest_idx}"))
             }
@@ -250,7 +280,7 @@ pub fn render_wheel(items: &mut [DisplayItem], ui: &Ui, draw_list: &DrawListMut)
     }
 
     let img_dim = DisplayItem::img_dim();
-    render_selector(&settings, items, ww, wh, img_dim, draw_list, angle, can_select);
+    render_selector(&settings, items, ww, wh, img_dim, draw_list, selection.angle(), can_select);
 
     let num_items = items.len();
     for item in items.iter_mut() {

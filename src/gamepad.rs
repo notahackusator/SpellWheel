@@ -8,7 +8,6 @@ use std::time::{Duration, Instant};
 use lazy_static::lazy_static;
 use windows::Win32::Foundation::ERROR_DEVICE_NOT_CONNECTED;
 use windows::Win32::UI::Input::XboxController::*;
-use crate::settings::{Settings, UsingController};
 
 pub type GamepadButtons = XINPUT_GAMEPAD_BUTTON_FLAGS;
 
@@ -29,10 +28,7 @@ lazy_static!(
         ("L2", Err(false)),
         ("L3", Ok(XINPUT_GAMEPAD_LEFT_THUMB)),
     ]);
-    static ref CONNECTION_STATUS: Arc<RwLock<ControllerConnectionStatus>> = Arc::new(
-        RwLock::new(ControllerConnectionStatus::Unknown)
-    );
-    static ref LATEST_SELECT_CONTROLLER: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    static ref LAST_OPEN_IS_CONTROLLER: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
 );
 
 #[derive(Clone, Debug)]
@@ -161,30 +157,10 @@ pub fn gamepad_state() -> GamepadState {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ControllerConnectionStatus {
-    Connected,
-    Disconnected,
-    Unknown,
-}
-
-pub fn controller_connected() -> ControllerConnectionStatus {
-    CONNECTION_STATUS.read().expect("Couldn't acquire CONNECTION_STATUS").clone()
-}
-
-pub fn set_latest_select_controller(latest_select_is_controller: bool) {
-    LATEST_SELECT_CONTROLLER.store(latest_select_is_controller, Ordering::Relaxed);
+pub fn set_last_open_is_controller(last_open_is_controller: bool) {
+    LAST_OPEN_IS_CONTROLLER.store(last_open_is_controller, Ordering::Relaxed);
 }
 
 pub fn using_controller() -> bool {
-    match (
-        Settings::read_or_default().using_controller,
-        controller_connected(),
-        LATEST_SELECT_CONTROLLER.load(Ordering::Relaxed)
-    ) {
-        (UsingController::True, _, _) => true,
-        (UsingController::False, _, _) => false,
-        (_, ControllerConnectionStatus::Connected, true) => true,
-        (_, _, _) => false,
-    }
+    LAST_OPEN_IS_CONTROLLER.load(Ordering::Relaxed)
 }
