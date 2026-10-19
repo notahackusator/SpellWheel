@@ -43,7 +43,10 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 		let bindings = Bindings::from_pad(pad);
 
 		let switch_spell = bindings.get_input_bindings(pad, &UserInputKey::SwitchSpell);
+		let switch_item = bindings.get_input_bindings(pad, &UserInputKey::SwitchItem);
 		set_spell_bindings(switch_spell);
+		set_item_bindings(switch_item);
+
 		let spell_status = switch_spell.pressed_status(None);
 		if (spell_status.key() || spell_status.mouse()) && settings.spells_key.to_lowercase() == "ingame" {
 			set_last_open_is_controller(false);
@@ -54,8 +57,6 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 			return WheelType::Spells;
 		}
 
-		let switch_item = bindings.get_input_bindings(pad, &UserInputKey::SwitchItem);
-		set_item_bindings(switch_item);
 		let item_status = switch_item.pressed_status(None);
 		if (item_status.key() || item_status.mouse()) && settings.quick_items_key.to_lowercase() == "ingame" {
 			set_last_open_is_controller(false);

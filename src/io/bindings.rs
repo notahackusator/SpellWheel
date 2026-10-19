@@ -1,4 +1,4 @@
-use crate::gamepad::{GamepadButtons, gamepad_state};
+use crate::gamepad::{GamepadButtons, GamepadState, gamepad_state};
 use crate::keyboard;
 use crate::settings::Settings;
 use bitfield::bitfield;
@@ -6,9 +6,10 @@ use eldenring::cs::{CSInGamePad, UserInputKey};
 use lazy_static::lazy_static;
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, RwLock};
-use windows::Win32::UI::Input::KeyboardAndMouse::{MAPVK_VSC_TO_VK_EX, MapVirtualKeyW};
+use windows::Win32::UI::Input::KeyboardAndMouse::{MapVirtualKeyW, MAPVK_VSC_TO_VK_EX, VK_0};
 use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_BACK, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_RIGHT, XINPUT_GAMEPAD_DPAD_UP, XINPUT_GAMEPAD_LEFT_SHOULDER, XINPUT_GAMEPAD_LEFT_THUMB, XINPUT_GAMEPAD_RIGHT_SHOULDER, XINPUT_GAMEPAD_RIGHT_THUMB, XINPUT_GAMEPAD_START, XINPUT_GAMEPAD_X, XINPUT_GAMEPAD_Y};
-use crate::debugging::add_to_screen_debug;
+use crate::debugging::run_once;
+use crate::keyboard::listener::{static_listener, Listener};
 
 lazy_static!(
 	static ref SPELL_BINDINGS: Arc<RwLock<PhysicalKeys>> = Arc::new(RwLock::new(PhysicalKeys::none()));
@@ -58,14 +59,19 @@ impl Bindings {
 
 			let begin = *input_mapper_inner.add(2) as *const usize;
 
-			let bindings_vec = *begin as *const usize;
+			let binding_vectors = *begin as *const usize;
 
-			let vec_begin = *bindings_vec.add(7);
-			let vec_end = *bindings_vec.add(8);
-			let bindings = BindingEntry::from_binding_vec(vec_begin as *const usize, vec_end as *const usize);
+			let mut digital_entries = BindingEntry::from_binding_vec(
+				*binding_vectors.add(7) as *const usize, *binding_vectors.add(8) as *const usize
+			);
+			let mut analog_entries = BindingEntry::from_binding_vec(
+				*binding_vectors.add(15) as *const usize, *binding_vectors.add(16) as *const usize
+			);
+			let mut entries = digital_entries;
+			entries.append(&mut analog_entries);
 
 			Self {
-				entries: bindings
+				entries
 			}
 		}
 	}
@@ -75,8 +81,9 @@ impl Bindings {
 pub struct PhysicalKeys {
 	pub which_present: u8,
 	pub mouse: u8,
-	pub pad: GamepadButtons,
+	pub pad: Result<GamepadButtons, bool>,
 	pub key: u32,
+	pub unknown: i32,
 }
 
 bitfield! {
@@ -92,24 +99,30 @@ impl PhysicalKeys {
 		Self {
 			which_present: 0,
 			mouse: 0,
-			pad: GamepadButtons::default(),
+			pad: Ok(GamepadButtons::default()),
 			key: 0,
+			unknown: 0,
 		}
 	}
 
 	pub fn mouse(&mut self, mouse: u8) {
-		self.which_present |= 0b001;
+		self.which_present |= 0b0001;
 		self.mouse = mouse;
 	}
 
-	pub fn pad(&mut self, pad: GamepadButtons) {
-		self.which_present |= 0b010;
+	pub fn pad(&mut self, pad: Result<GamepadButtons, bool>) {
+		self.which_present |= 0b0010;
 		self.pad = pad;
 	}
 
 	pub fn key(&mut self, key: u32) {
-		self.which_present |= 0b100;
+		self.which_present |= 0b0100;
 		self.key = key;
+	}
+
+	pub fn unknown(&mut self, unknown: i32) {
+		self.which_present |= 0b1000;
+		self.unknown = unknown;
 	}
 
 	pub fn pressed_status(&self, min_pad_press_length: Option<f32>) -> PressedStatus {
@@ -124,9 +137,12 @@ impl PhysicalKeys {
 			} else {
 				[controller_delay, f32::MAX]
 			};
-			let length = gamepad_state().pressed_duration(Ok(self.pad)).as_secs_f32();
-			add_to_screen_debug(format!("  {min} {length:.2} {max} {}", min <= length && length <= max));
-			ps.set_pad(min <= length && length <= max);
+			if min == 0.0 && max != 0.0 {
+				ps.set_pad(GamepadState::new_active_state().pressed_duration(self.pad).is_some());
+			} else if let Some(length) = gamepad_state().pressed_duration(self.pad) {
+				let length = length.as_secs_f32();
+				ps.set_pad(min <= length && length <= max);
+			}
 		}
 		if self.which_present & 0b100 != 0 {
 			ps.set_key(keyboard::is_pressed(self.key as i32));
@@ -137,14 +153,17 @@ impl PhysicalKeys {
 
 impl Debug for PhysicalKeys {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		if self.which_present & 0b001 != 0 {
+		if self.which_present & 0b0001 != 0 {
 			write!(f, "mouse={} ", self.mouse)?;
 		}
-		if self.which_present & 0b010 != 0 {
+		if self.which_present & 0b0010 != 0 {
 			write!(f, "pad={:?} ", self.pad)?;
 		}
-		if self.which_present & 0b100 != 0 {
+		if self.which_present & 0b0100 != 0 {
 			write!(f, "key={} ", self.key)?;
+		}
+		if self.which_present & 0b1000 != 0 {
+			write!(f, "unknown={} ", self.unknown)?;
 		}
 		Ok(())
 	}
@@ -156,9 +175,10 @@ impl<'a> FromIterator<&'a BindingEntry> for PhysicalKeys {
 		for entry in iter {
 			match entry.decode() {
 				PhysicalInput::Mouse(mouse) => this.mouse(mouse),
-				PhysicalInput::Pad(pad) => this.pad(pad),
+				PhysicalInput::PadTriggers(is_right) => this.pad(Err(is_right)),
+				PhysicalInput::Pad(pad) => this.pad(Ok(pad)),
 				PhysicalInput::Key(key) => this.key(key),
-				PhysicalInput::Unknown(_) => {}
+				PhysicalInput::Unknown(unknown) => this.unknown(unknown),
 			}
 		}
 		this
@@ -200,6 +220,7 @@ impl BindingEntry {
 	pub fn decode(&self) -> PhysicalInput {
 		match self.code {
 			0..=7 => PhysicalInput::Mouse(self.code as u8),
+			11..=12 => PhysicalInput::PadTriggers(self.code == 12),
 			40..=53 => PhysicalInput::Pad(PAD_ORDER[(self.code - 40) as usize]),
 			70..=189 => PhysicalInput::Key(di_to_vk((self.code - 69) as u32)),
 			190..=198 => PhysicalInput::Key(NAV_VK[(self.code - 190) as usize]),
@@ -226,6 +247,7 @@ impl BindingEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalInput {
 	Mouse(u8),
+	PadTriggers(bool),
 	Pad(GamepadButtons),
 	Key(u32),
 	Unknown(i32),

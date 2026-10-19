@@ -51,15 +51,15 @@ impl GamepadState {
         }
     }
 
-    pub fn pressed_duration(&self, button: Result<GamepadButtons, bool>) -> Duration {
+    pub fn pressed_duration(&self, button: Result<GamepadButtons, bool>) -> Option<Duration> {
         match button {
             Ok(pressed_button) => {
                 let start = self.pressed[pressed_button.0.trailing_zeros() as usize];
 
                 if start == *PROGRAM_START {
-                    return Duration::ZERO;
+                    return None;
                 }
-                start.elapsed()
+                Some(start.elapsed())
             }
             Err(is_r2) => {
                 let start = if is_r2 {
@@ -69,11 +69,20 @@ impl GamepadState {
                 };
 
                 if start == *PROGRAM_START {
-                    return Duration::ZERO;
+                    return None;
                 }
-                start.elapsed()
+                Some(start.elapsed())
             }
         }
+    }
+
+    /// Returns a GamepadState that starts at the moment of this call.
+    /// This should only be used for detecting whether a button is pressed in real-time.
+    /// Otherwise, use [gamepad_state]
+    pub fn new_active_state() -> Self {
+        let mut this = Self::new();
+        this.update();
+        this
     }
 
     pub fn update(&mut self) {

@@ -67,7 +67,7 @@ const TARGETS: [Target; NUM_HOOKS] = [
 			(13, SuppressionType::Spell),
 			(14, SuppressionType::Item),
 		]),
-		controller_suppression_length: 0.0,
+		controller_suppression_length: 0.5,
 	},
 ];
 static HOOKS: [OnceLock<GenericDetour<GenericHookFn>>; NUM_HOOKS] = [const { OnceLock::new() }; NUM_HOOKS];
@@ -95,7 +95,6 @@ unsafe extern "C" fn generic_hook<const I: usize>(a: usize, b: usize, c: usize, 
 	let mut ignore = true;
 	match supp_type {
 		SuppressionType::Item => {
-			add_to_screen_debug(format!("{items_pressed:?}"));
 			// Cycle if pressed in-game key while control is not in-game
 			if (items_pressed.key() || items_pressed.mouse()) && !items_key_ingame {
 				ignore = false;
@@ -106,7 +105,6 @@ unsafe extern "C" fn generic_hook<const I: usize>(a: usize, b: usize, c: usize, 
 			}
 		}
 		SuppressionType::Spell => {
-			add_to_screen_debug(format!("{spells_pressed:?}"));
 			// Cycle if pressed in-game key while control is not in-game
 			if (spells_pressed.key() || spells_pressed.mouse()) && !spells_key_ingame {
 				ignore = false;
