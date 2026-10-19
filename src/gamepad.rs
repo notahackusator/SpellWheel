@@ -51,15 +51,15 @@ impl GamepadState {
         }
     }
 
-    pub fn pressed_duration(&self, button: Result<GamepadButtons, bool>) -> Option<Duration> {
+    pub fn pressed_duration(&self, button: Result<GamepadButtons, bool>) -> Duration {
         match button {
             Ok(pressed_button) => {
                 let start = self.pressed[pressed_button.0.trailing_zeros() as usize];
 
                 if start == *PROGRAM_START {
-                    return None;
+                    return Duration::ZERO;
                 }
-                Some(start.elapsed())
+                start.elapsed()
             }
             Err(is_r2) => {
                 let start = if is_r2 {
@@ -69,9 +69,9 @@ impl GamepadState {
                 };
 
                 if start == *PROGRAM_START {
-                    return None;
+                    return Duration::ZERO;
                 }
-                Some(start.elapsed())
+                start.elapsed()
             }
         }
     }

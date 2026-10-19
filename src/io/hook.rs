@@ -18,8 +18,8 @@ struct Target {
 	/// If set, only suppress when the 2nd argument (rdx) is one of these ids.
 	/// The hold check is one function shared by several actions, with the
 	/// action id as its second argument (13 = spell, 14 = item).
-	ids: Option<&'static [u32]>,
-	suppression_type: SuppressionType,
+	ids: Result<SuppressionType, &'static [(u32, SuppressionType)]>,
+	controller_suppression_length: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,36 +35,39 @@ const TARGETS: [Target; NUM_HOOKS] = [
 		name: "Switch Spell request",
 		rva: 0x759120,
 		prefix: INPUT_CHECK_PREFIX,
-		ids: None,
-		suppression_type: SuppressionType::Spell,
+		ids: Ok(SuppressionType::Spell),
+		controller_suppression_length: 0.0,
 	},
 	Target {
 		name: "Switch Item request",
 		rva: 0x7590B0,
 		prefix: INPUT_CHECK_PREFIX,
-		ids: None,
-		suppression_type: SuppressionType::Item,
+		ids: Ok(SuppressionType::Item),
+		controller_suppression_length: 0.0,
 	},
 	Target {
 		name: "Switch Spell repeat",
 		rva: 0x759680,
 		prefix: INPUT_CHECK_PREFIX,
-		ids: None,
-		suppression_type: SuppressionType::Spell,
+		ids: Ok(SuppressionType::Spell),
+		controller_suppression_length: 0.5,
 	},
 	Target {
 		name: "Switch Item repeat",
 		rva: 0x7593D0,
 		prefix: INPUT_CHECK_PREFIX,
-		ids: None,
-		suppression_type: SuppressionType::Item,
+		ids: Ok(SuppressionType::Item),
+		controller_suppression_length: 0.5,
 	},
 	Target {
 		name: "Switch Spell / Item hold",
 		rva: 0x759270,
 		prefix: SWITCH_HOLD_PREFIX,
-		ids: Some(&[13, 14]),
-		suppression_type: SuppressionType::Both,
+		ids: Err(&[
+			(13, SuppressionType::Spell),
+			(14, SuppressionType::Item),
+		]),
+		controller_suppression_length: 0.0,
 	},
 ];
 static HOOKS: [OnceLock<GenericDetour<GenericHookFn>>; NUM_HOOKS] = [const { OnceLock::new() }; NUM_HOOKS];
@@ -74,25 +77,48 @@ unsafe extern "C" fn generic_hook<const I: usize>(a: usize, b: usize, c: usize, 
 	let items_key_ingame = settings.quick_items_key.to_lowercase() == "ingame";
 	let spells_key_ingame = settings.spells_key.to_lowercase() == "ingame";
 
-	let items_key_pressed = get_item_bindings().pressed_status();
-	let spells_key_pressed = get_spell_bindings().pressed_status();
-
 	let target = &TARGETS[I];
-	let mut hit = match target.ids {
-		Some(ids) => ids.contains(&(b as u32)),
-		None => true,
+
+	let items_pressed = get_item_bindings()
+		.pressed_status(Some(target.controller_suppression_length));
+	let spells_pressed = get_spell_bindings()
+		.pressed_status(Some(target.controller_suppression_length));
+
+	let supp_type = match target.ids {
+		Ok(supp_type) => supp_type,
+		Err(supp_types) => supp_types.iter()
+			.find(|(id, _)| *id == b as u32)
+			.map(|(_, supp_type)| *supp_type)
+			.unwrap_or(SuppressionType::Both),
 	};
 
-	match (hit, items_key_pressed, spells_key_pressed, items_key_ingame, spells_key_ingame) {
-		(true, _, pressed, _, false) if pressed.key() || pressed.mouse() => {
-			hit = false;
+	let mut ignore = true;
+	match supp_type {
+		SuppressionType::Item => {
+			add_to_screen_debug(format!("{items_pressed:?}"));
+			// Cycle if pressed in-game key while control is not in-game
+			if (items_pressed.key() || items_pressed.mouse()) && !items_key_ingame {
+				ignore = false;
+			}
+			// Cycle if pressed button for less than opening time
+			if items_pressed.pad() {
+				ignore = false;
+			}
 		}
-		(true, pressed, _, false, _) if pressed.key() || pressed.mouse() => {
-			hit = false;
+		SuppressionType::Spell => {
+			add_to_screen_debug(format!("{spells_pressed:?}"));
+			// Cycle if pressed in-game key while control is not in-game
+			if (spells_pressed.key() || spells_pressed.mouse()) && !spells_key_ingame {
+				ignore = false;
+			}
+			// Cycle if pressed button for less than opening time
+			if spells_pressed.pad() {
+				ignore = false;
+			}
 		}
 		_ => {}
 	}
-	if hit {
+	if ignore {
 		return 0;
 	}
 

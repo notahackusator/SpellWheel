@@ -1,8 +1,7 @@
-use crate::debugging::{add_to_screen_debug, is_debugging, run_every, run_once};
-use crate::gamepad::{gamepad_state, set_last_open_is_controller, BUTTONS};
+use crate::debugging::{add_to_screen_debug, is_debugging};
+use crate::gamepad::set_last_open_is_controller;
 use crate::io::bindings::{set_spell_bindings, Bindings, set_item_bindings};
 use crate::keyboard::KEYS;
-use crate::keyboard::listener::{Listener, static_listener};
 use crate::rendering::wheel_renderer::WheelType;
 use crate::settings::Settings;
 use crate::{in_menus, keyboard};
@@ -14,13 +13,7 @@ use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
 use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_CAPITAL, VK_TAB};
 use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use lazy_static::lazy_static;
-use retour::GenericDetour;
-use std::mem;
-use std::sync::{LockResult, Mutex, MutexGuard, OnceLock};
-use std::time::{Duration, Instant};
-use windows::Win32::UI::Input::KeyboardAndMouse::{MAPVK_VSC_TO_VK_EX, MapVirtualKeyW, VK_0};
-use windows::Win32::UI::Input::XboxController::XINPUT_GAMEPAD_BUTTON_FLAGS;
-use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use std::sync::{LockResult, Mutex, MutexGuard};
 
 pub mod bindings;
 pub mod hook;
@@ -51,7 +44,7 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 
 		let switch_spell = bindings.get_input_bindings(pad, &UserInputKey::SwitchSpell);
 		set_spell_bindings(switch_spell);
-		let spell_status = switch_spell.pressed_status();
+		let spell_status = switch_spell.pressed_status(None);
 		if (spell_status.key() || spell_status.mouse()) && settings.spells_key.to_lowercase() == "ingame" {
 			set_last_open_is_controller(false);
 			return WheelType::Spells;
@@ -63,7 +56,7 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 
 		let switch_item = bindings.get_input_bindings(pad, &UserInputKey::SwitchItem);
 		set_item_bindings(switch_item);
-		let item_status = switch_item.pressed_status();
+		let item_status = switch_item.pressed_status(None);
 		if (item_status.key() || item_status.mouse()) && settings.quick_items_key.to_lowercase() == "ingame" {
 			set_last_open_is_controller(false);
 			return WheelType::QuickItems;
