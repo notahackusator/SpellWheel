@@ -33,35 +33,35 @@ const NUM_HOOKS: usize = 5;
 const TARGETS: [Target; NUM_HOOKS] = [
 	Target {
 		name: "Switch Spell request",
-		rva: 0x759120,
+		rva: 0x7595D0,
 		prefix: INPUT_CHECK_PREFIX,
 		ids: Ok(SuppressionType::Spell),
 		controller_suppression_length: 0.0,
 	},
 	Target {
 		name: "Switch Item request",
-		rva: 0x7590B0,
+		rva: 0x759560,
 		prefix: INPUT_CHECK_PREFIX,
 		ids: Ok(SuppressionType::Item),
 		controller_suppression_length: 0.0,
 	},
 	Target {
 		name: "Switch Spell repeat",
-		rva: 0x759680,
+		rva: 0x759B30,
 		prefix: INPUT_CHECK_PREFIX,
 		ids: Ok(SuppressionType::Spell),
 		controller_suppression_length: 0.5,
 	},
 	Target {
 		name: "Switch Item repeat",
-		rva: 0x7593D0,
+		rva: 0x759880,
 		prefix: INPUT_CHECK_PREFIX,
 		ids: Ok(SuppressionType::Item),
 		controller_suppression_length: 0.5,
 	},
 	Target {
 		name: "Switch Spell / Item hold",
-		rva: 0x759270,
+		rva: 0x759720,
 		prefix: SWITCH_HOLD_PREFIX,
 		ids: Err(&[
 			(13, SuppressionType::Spell),

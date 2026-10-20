@@ -81,6 +81,7 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 		prev_key, key, raw_key_default,
 	) in [spells, quick_items] {
 		if let Some(value) = is_wheel_open_key_pressed(wheel_type, prev_key, key, &raw_key_default) {
+			set_last_open_is_controller(false);
 			return value;
 		}
 	}
