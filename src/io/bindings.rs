@@ -217,7 +217,7 @@ impl BindingEntry {
 
 	pub fn decode(&self) -> PhysicalInput {
 		match self.code {
-			0..=7 => PhysicalInput::Mouse(self.code as u8),
+			0..=3 => PhysicalInput::Mouse(MOUSE_BUTTON_ORDER[self.code as usize]),
 			11..=12 => PhysicalInput::PadTriggers(self.code == 12),
 			40..=53 => PhysicalInput::Pad(PAD_ORDER[(self.code - 40) as usize]),
 			70..=189 => PhysicalInput::Key(di_to_vk((self.code - 69) as u32)),
@@ -259,6 +259,8 @@ pub fn di_to_vk(di: u32) -> u32 {
 	};
 	unsafe { MapVirtualKeyW(sc, MAPVK_VSC_TO_VK_EX) }
 }
+
+const MOUSE_BUTTON_ORDER: [u8; 4] = [1, 2, 4, 5];
 
 // VK_UP, VK_PRIOR, VK_LEFT, VK_RIGHT, VK_END, VK_DOWN, VK_NEXT, VK_INSERT, VK_DELETE
 const NAV_VK: [u32; 9] = [0x26, 0x21, 0x25, 0x27, 0x23, 0x28, 0x22, 0x2D, 0x2E];
