@@ -42,7 +42,11 @@ use std::mem;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use tracing_subscriber::fmt;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{fmt, Registry};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::reload::{Handle, Layer};
+use tracing_subscriber::util::SubscriberInitExt;
 #[cfg(feature = "extra-memory-slots-support")]
 use crate::expanded_memory_slots::SelectionResult;
 use crate::items::Item;
@@ -95,8 +99,16 @@ fn init(hmodule: usize) {
         await_seamless();
     }
 
-    fmt().with_writer(File::create(paths::log()).expect("Could not create log file"))
-        .with_ansi(false)
+    let (filter, reload_handle) = Layer::new(LevelFilter::INFO);
+
+    let log_file = File::create(paths::log()).expect("Could not create log file");
+    let fmt_layer = fmt::layer()
+        .with_writer(log_file)
+        .with_ansi(false);
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(fmt_layer)
         .init();
     tracing::info!("Log file created");
     std::panic::set_hook(Box::new(move |info| {
@@ -105,7 +117,7 @@ fn init(hmodule: usize) {
     }));
 
     guard!(
-        start();
+        start(reload_handle);
     );
 }
 
@@ -137,7 +149,7 @@ macro_rules! guard {
     };
 }
 
-fn start() {
+fn start(reload_handle: Handle<LevelFilter, Registry>) {
     tracing::info!("DLL Path: {:?}", paths::dll());
     tracing::info!("Game Path: {:?}", paths::game());
     tracing::info!("Awaiting system init");
@@ -161,7 +173,7 @@ fn start() {
     }
     tracing::info!("Running task");
     tasks.run_recurring(
-        tick,
+        move |fd4: &FD4TaskData| tick(fd4, &reload_handle),
         CSTaskGroupIndex::MenuMan
     );
 }
@@ -213,15 +225,20 @@ lazy_static!(
     static ref PREV_WHEEL_TYPE: Arc<Mutex<WheelType>> = Arc::new(Mutex::new(WheelType::None));
     static ref PREV_DISPLAY_SETTINGS_OPEN: AtomicBool = AtomicBool::new(false);
 );
-fn tick(_fd4: &FD4TaskData) {
+fn tick(_fd4: &FD4TaskData, reload_handle: &Handle<LevelFilter, Registry>) {
     guard!(
         run_once!("entered tick function" => {
             tracing::info!("Entered tick function");
         });
         if is_debugging() {
+            reload_handle.reload(LevelFilter::DEBUG)
+                .expect("Failed to reload log level");
             run_every!("D tick" every Duration::from_secs(1) => {
                 tracing::info!("In tick function");
             });
+        } else {
+            reload_handle.reload(LevelFilter::INFO)
+                .expect("Failed to reload log level");
         }
         let Some(world_chr_man_dbg) = unsafe { WorldChrManDbg::instance() }.ok() else {
             return;

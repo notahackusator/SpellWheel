@@ -13,6 +13,15 @@ spells_key = "INGAME"
 
 quick_items_key = "INGAME"
 
+# Whether you need to hold the button or toggle it to open the spell wheel. Either "HOLD" or "TOGGLE". Default is "HOLD".
+spell_wheel_input_type = "HOLD"
+
+# Whether you need to hold the button or toggle it to open the item wheel. Either "HOLD" or "TOGGLE". Default is "HOLD".
+item_wheel_input_type = "HOLD"
+
+# Whether to use the selected item after releasing the item wheel.
+use_item_on_release = false
+
 # The style of the spell / item wheel. Use "pretty" or "simple". Default is "pretty"
 style = "pretty"
 

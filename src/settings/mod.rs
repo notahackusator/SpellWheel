@@ -73,6 +73,9 @@ settings!(
     item_wheel_enabled: bool,
     spells_key: String,
     quick_items_key: String,
+    spell_wheel_input_type: String,
+    item_wheel_input_type: String,
+    use_item_on_release: bool,
     style: String,
     highlight_time: f32,
     highlight_expansion: f32,
@@ -119,6 +122,18 @@ pub const fn center_on_close() -> bool {
 
 pub fn style() -> String {
     "pretty".to_string()
+}
+
+pub fn spell_wheel_input_type() -> String {
+    "HOLD".to_string()
+}
+
+pub fn item_wheel_input_type() -> String {
+    "HOLD".to_string()
+}
+
+pub fn use_item_on_release() -> bool {
+    false
 }
 
 pub const fn highlight_time() -> f32 {
@@ -231,6 +246,22 @@ impl<S: AsRef<str>> From<S> for Style {
             "simple" => Self::Simple,
             "pretty" => Self::Pretty,
             _ => Self::Pretty,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum InputType {
+    Hold,
+    Toggle
+}
+
+impl<S: AsRef<str>> From<S> for InputType {
+    fn from(value: S) -> Self {
+        match value.as_ref().to_lowercase().as_str() {
+            "hold" => Self::Hold,
+            "toggle" => Self::Toggle,
+            _ => Self::Hold,
         }
     }
 }
@@ -379,6 +410,14 @@ impl Settings {
 
     pub fn style(&self) -> Style {
         self.style.as_str().into()
+    }
+
+    pub fn spell_wheel_input_type(&self) -> InputType {
+        self.spell_wheel_input_type.as_str().into()
+    }
+
+    pub fn item_wheel_input_type(&self) -> InputType {
+        self.item_wheel_input_type.as_str().into()
     }
     
     // Returns the highlight time t normalized. Takes into account self.highlight_time = 0.

@@ -1,5 +1,6 @@
 use crate::gamepad::{GamepadButtons, GamepadState, gamepad_state};
 use crate::keyboard;
+use crate::keyboard::hook::scrolled;
 use crate::settings::Settings;
 use bitfield::bitfield;
 use eldenring::cs::{CSInGamePad, UserInputKey};
@@ -9,8 +10,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, RwLock};
 use windows::Win32::UI::Input::KeyboardAndMouse::{MAPVK_VSC_TO_VK_EX, MapVirtualKeyW};
 use windows::Win32::UI::Input::XboxController::{XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_BACK, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_RIGHT, XINPUT_GAMEPAD_DPAD_UP, XINPUT_GAMEPAD_LEFT_SHOULDER, XINPUT_GAMEPAD_LEFT_THUMB, XINPUT_GAMEPAD_RIGHT_SHOULDER, XINPUT_GAMEPAD_RIGHT_THUMB, XINPUT_GAMEPAD_START, XINPUT_GAMEPAD_X, XINPUT_GAMEPAD_Y};
-use crate::debugging::add_to_screen_debug;
-use crate::keyboard::hook::{get_scroll, scrolled};
+use crate::io::classes::{BindingVector, CSKeyAssign};
 
 lazy_static!(
 	static ref SPELL_BINDINGS: Arc<RwLock<PhysicalKeys>> = Arc::new(RwLock::new(PhysicalKeys::none()));
@@ -63,24 +63,32 @@ impl Bindings {
 
 	pub fn from_pad(pad: &CSInGamePad) -> Self {
 		unsafe {
-			let key_assign = pad.key_assign.as_ref();
-			let key_assign_ptr = std::ptr::from_ref(key_assign).cast::<usize>();
-			let input_mapper_ptr = *key_assign_ptr.add(2) as *const usize;
+			let mut entries = vec![];
 
-			let input_mapper_inner = *input_mapper_ptr.add(1) as *const usize;
+			tracing::debug!("Accessing key assignments");
+			let key_assign = pad.key_assign.as_ptr().cast::<CSKeyAssign>();
+			let Some((digital, analog)) = key_assign.as_ref()
+				.and_then(|ka| ka.input_mapper())
+				.and_then(|im| im.inner())
+				.and_then(|i| i.begin())
+				.and_then(|b| b.binding_vectors())
+				.map(|bv| (&bv.digital, &bv.analog)) else {
 
-			let begin = *input_mapper_inner.add(2) as *const usize;
+				return Self {
+					entries,
+				};
+			};
+			tracing::debug!("Found key assignment");
 
-			let binding_vectors = *begin as *const usize;
+			tracing::debug!("Creating digital bindings...");
+			entries.append(&mut BindingEntry::from_binding_vec(digital, false));
+			tracing::debug!("Created digital bindings");
 
-			let mut digital_entries = BindingEntry::from_binding_vec(
-				*binding_vectors.add(7) as *const usize, *binding_vectors.add(8) as *const usize, false
-			);
-			let mut analog_entries = BindingEntry::from_binding_vec(
-				*binding_vectors.add(15) as *const usize, *binding_vectors.add(16) as *const usize, true
-			);
-			let mut entries = digital_entries;
-			entries.append(&mut analog_entries);
+			tracing::debug!("Creating Analog bindings...");
+			entries.append(&mut BindingEntry::from_binding_vec(analog, true));
+			tracing::debug!("Created Analog bindings");
+
+			tracing::debug!("Bindings creation complete");
 
 			Self {
 				entries
@@ -202,6 +210,27 @@ impl<'a> FromIterator<&'a BindingEntry> for PhysicalKeys {
 	}
 }
 
+impl PressedStatus {
+	pub fn none() -> Self {
+		Self(0)
+	}
+
+	pub(super) fn flip_if(&mut self, mouse_pred: bool, pad_pred: bool, key_pred: bool, scroll_pred: bool) {
+		if mouse_pred {
+			self.set_mouse(!self.mouse());
+		}
+		if pad_pred {
+			self.set_pad(!self.pad());
+		}
+		if key_pred {
+			self.set_key(!self.key());
+		}
+		if scroll_pred {
+			self.set_scroll(!self.scroll());
+		}
+	}
+}
+
 impl Debug for PressedStatus {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		if self.mouse() {
@@ -250,14 +279,18 @@ impl BindingEntry {
 		}
 	}
 
-	pub unsafe fn from_binding_vec(vec_begin: *const usize, vec_end: *const usize, is_analog: bool) -> Vec<Self> {
+	pub unsafe fn from_binding_vec(binding_vector: &BindingVector, is_analog: bool) -> Vec<Self> {
 		let mut out = Vec::new();
-		if vec_begin.is_null() || vec_end < vec_begin {
+		tracing::debug!("bv: {:p}->{:p}", binding_vector.begin, binding_vector.end);
+		if binding_vector.end < binding_vector.begin {
 			return out;
 		}
-		let n = (vec_end as usize - vec_begin as usize) / 8;
+		let n = (binding_vector.end as usize - binding_vector.begin as usize) / 8;
 		for i in 0..n {
-			let entry_ptr = *vec_begin.add(i) as *const i32;
+			let entry_ptr = *binding_vector.begin.add(i) as *const i32;
+			if is_analog {
+				tracing::debug!("  bv[{i}]: {entry_ptr:p}");
+			}
 			if !entry_ptr.is_null() {
 				// 0 -> not mouse wheel, 1 -> mouse wheel up, -1 -> mouse wheel down
 				let mouse_wheel = if is_analog {
