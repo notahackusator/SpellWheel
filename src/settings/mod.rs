@@ -75,6 +75,7 @@ settings!(
     quick_items_key: String,
     spell_wheel_input_type: String,
     item_wheel_input_type: String,
+    scrolling_toggles_wheel: bool,
     use_item_on_release: bool,
     style: String,
     highlight_time: f32,
@@ -130,6 +131,10 @@ pub fn spell_wheel_input_type() -> String {
 
 pub fn item_wheel_input_type() -> String {
     "HOLD".to_string()
+}
+
+pub fn scrolling_toggles_wheel() -> bool {
+    false
 }
 
 pub fn use_item_on_release() -> bool {

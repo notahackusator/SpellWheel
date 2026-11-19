@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use crate::debugging::add_to_screen_debug;
 use crate::io::bindings::{get_item_bindings, get_spell_bindings};
-use crate::settings::Settings;
+use crate::settings::{InputType, Settings};
 
 type GenericHookFn = unsafe extern "C" fn(usize, usize, usize, usize) -> usize;
 
@@ -98,8 +98,8 @@ unsafe extern "C" fn generic_hook<const I: usize>(a: usize, b: usize, c: usize, 
 			if !settings.item_wheel_enabled {
 				ignore = false;
 			}
-			// Cycle if mouse button is scroll
-			if items_pressed.scroll() {
+			// Cycle if mouse button is scroll AND (scrolling doesn't toggle wheel OR input type is not toggle)
+			if items_pressed.scroll() && (!settings.scrolling_toggles_wheel || settings.item_wheel_input_type() == InputType::Hold) {
 				ignore = false;
 			}
 			// Cycle if pressed in-game key while control is not in-game
@@ -115,8 +115,8 @@ unsafe extern "C" fn generic_hook<const I: usize>(a: usize, b: usize, c: usize, 
 			if !settings.spell_wheel_enabled {
 				ignore = false;
 			}
-			// Cycle if mouse button is scroll
-			if spells_pressed.scroll() {
+			// Cycle if mouse button is scroll AND (scrolling doesn't toggle wheel OR input type is not toggle)
+			if spells_pressed.scroll() && (!settings.scrolling_toggles_wheel || settings.spell_wheel_input_type() == InputType::Hold) {
 				ignore = false;
 			}
 			// Cycle if pressed in-game key while control is not in-game

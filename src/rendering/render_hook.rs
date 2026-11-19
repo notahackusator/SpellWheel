@@ -41,6 +41,10 @@ impl RenderHook {
         }
     }
 
+    fn use_quick_item(&self) {
+        // todo
+    }
+
     fn switch_item(&self) {
         match self.prev_type {
             WheelType::Spells => {
@@ -124,6 +128,9 @@ impl ImguiRenderLoop for RenderHook {
 
             let switch_items = settings.switch_instantly || (self.prev_type != wheel_type);
             if switch_items {
+                if self.prev_type == WheelType::QuickItems {
+                    self.use_quick_item();
+                }
                 self.switch_item();
             }
 

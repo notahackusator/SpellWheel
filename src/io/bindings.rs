@@ -215,6 +215,15 @@ impl PressedStatus {
 		Self(0)
 	}
 
+	pub(super) fn flip_if_true_false(&mut self, a: &Self, b: &Self) {
+		self.flip_if(
+			a.mouse() && !b.mouse(),
+			a.pad() && !b.pad(),
+			a.key() && !b.key(),
+			a.scroll() && !b.scroll(),
+		);
+	}
+
 	pub(super) fn flip_if(&mut self, mouse_pred: bool, pad_pred: bool, key_pred: bool, scroll_pred: bool) {
 		if mouse_pred {
 			self.set_mouse(!self.mouse());

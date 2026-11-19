@@ -19,6 +19,13 @@ spell_wheel_input_type = "HOLD"
 # Whether you need to hold the button or toggle it to open the item wheel. Either "HOLD" or "TOGGLE". Default is "HOLD".
 item_wheel_input_type = "HOLD"
 
+# Whether scrolling should toggle the spell / item wheel. Default is false.
+# Only works when all of these are true:
+#  1. Your spell / item switch key in-game is scroll up/down
+#  2. spells_key / quick_items_key = "INGAME"
+#  3. spell_wheel_input_type / item_wheel_input_type = "TOGGLE"
+scrolling_toggles_wheel = false
+
 # Whether to use the selected item after releasing the item wheel.
 use_item_on_release = false
 
