@@ -1,3 +1,6 @@
+use eldenring::cs::UserInputKey;
+use eldenring::fd4::FD4PadManager;
+use fromsoftware_shared::FromStatic;
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::font::FontId;
 use crate::glyphs::font_manager::FontManager;
@@ -13,6 +16,7 @@ use crate::{guard, set_hwnd, set_selected_quick_item_index, set_selected_spell_i
 use hudhook::{ImguiRenderLoop, RenderContext};
 use imgui::{Context, Ui, WindowFlags};
 use ordered_float::OrderedFloat;
+use crate::game_interface::queue_use_quick_item;
 use crate::gamepad::using_controller;
 use crate::icons::texture_manager::TextureManager;
 use crate::rendering::popup_renderer::{add_popup, draw_popups};
@@ -39,10 +43,6 @@ impl RenderHook {
             prev_spells: vec![],
             prev_quick_items: vec![],
         }
-    }
-
-    fn use_quick_item(&self) {
-        // todo
     }
 
     fn switch_item(&self) {
@@ -121,17 +121,19 @@ impl ImguiRenderLoop for RenderHook {
 
             let settings = Settings::read_or_default();
 
-            if (self.prev_type != WheelType::None) && (wheel_type == WheelType::None) &&
-                !using_controller() && settings.center_on_close {
-                reset_cursor_pos();
-            }
-
             let switch_items = settings.switch_instantly || (self.prev_type != wheel_type);
             if switch_items {
-                if self.prev_type == WheelType::QuickItems {
-                    self.use_quick_item();
-                }
                 self.switch_item();
+            }
+
+            if (self.prev_type != WheelType::None) && (wheel_type == WheelType::None) {
+                let item_highlighted = self.display_quick_items.iter().any(|di| di.is_highlighted);
+                if self.prev_type == WheelType::QuickItems && settings.use_item_on_release && item_highlighted {
+                    queue_use_quick_item();
+                }
+                if !using_controller() && settings.center_on_close {
+                    reset_cursor_pos();
+                }
             }
 
             let [sw, sh] = ui.io().display_size;
@@ -150,23 +152,17 @@ impl ImguiRenderLoop for RenderHook {
                 .no_inputs()
                 .movable(false)
                 .build(|| {
-                    if is_debugging() {
-                        tracing::info!("ImGui Display size: {:?}", ui.io().display_size);
-                        tracing::info!("ImGui window size: {:?}", ui.window_size());
-                        tracing::info!("Process window size: {:?}", get_window_size());
-                    }
+                    tracing::debug!("ImGui Display size: {:?}", ui.io().display_size);
+                    tracing::debug!("ImGui window size: {:?}", ui.window_size());
+                    tracing::debug!("Process window size: {:?}", get_window_size());
 
-                    if self.prev_spells != spells {
-                        if is_debugging() {
-                            tracing::info!("Remaking display spells");
-                        }
+                    if self.prev_spells != spells || self.prev_type != wheel_type {
+                        tracing::debug!("Remaking display spells");
                         self.display_spells = DisplayItem::from_items(ui, &spells);
                     }
                     self.display_spells.sort_by_key(|di| OrderedFloat(di.highlight_time));
-                    if self.prev_quick_items != quick_items {
-                        if is_debugging() {
-                            tracing::info!("Remaking display quick items");
-                        }
+                    if self.prev_quick_items != quick_items || self.prev_type != wheel_type {
+                        tracing::debug!("Remaking display quick items");
                         self.display_quick_items = DisplayItem::from_items(ui, &quick_items);
                     }
                     self.display_quick_items.sort_by_key(|di| OrderedFloat(di.highlight_time));

@@ -19,6 +19,7 @@ pub mod util;
 pub mod io;
 pub mod font;
 pub mod glyphs;
+pub mod game_interface;
 
 use crate::await_seamless::{await_seamless, is_seamless_coop_active};
 use crate::debugging::{add_to_screen_debug, commit_screen_debug, is_debugging, run_every, run_once};
