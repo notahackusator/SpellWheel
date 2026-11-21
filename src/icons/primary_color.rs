@@ -16,8 +16,8 @@ pub fn pop_score(rgb: Rgb8) -> f32 {
     s * v_penalty.max(0.0)
 }
 
-pub fn bucket_key(rgb: Rgb8) -> (u8, u8, u8) {
-    (rgb[0] >> 4, rgb[1] >> 4, rgb[2] >> 4)
+pub fn bucket_key(rgb: Rgb8) -> Rgb8 {
+    [rgb[0] >> 4, rgb[1] >> 4, rgb[2] >> 4]
 }
 
 pub type Rgb8 = [u8; 3];
@@ -55,7 +55,7 @@ impl PrimaryColors {
     }
 
     pub fn dominant_pop_color(&self, x_min: u32, y_min: u32, x_max: u32, y_max: u32) -> Option<Rgb8> {
-        let mut buckets: HashMap<(u8, u8, u8), (u32, [u32; 3], f32)> = HashMap::new();
+        let mut buckets: HashMap<Rgb8, (u32, [u32; 3], f32)> = HashMap::new();
         let block_size = self.block_size;
 
         let mut y = y_min;

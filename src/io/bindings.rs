@@ -288,7 +288,7 @@ impl BindingEntry {
 		}
 	}
 
-	pub unsafe fn from_binding_vec(binding_vector: &BindingVector, is_analog: bool) -> Vec<Self> {
+	pub fn from_binding_vec(binding_vector: &BindingVector, is_analog: bool) -> Vec<Self> {
 		let mut out = Vec::new();
 		tracing::debug!("bv: {:p}->{:p}", binding_vector.begin, binding_vector.end);
 		if binding_vector.end < binding_vector.begin {
@@ -296,15 +296,15 @@ impl BindingEntry {
 		}
 		let n = (binding_vector.end as usize - binding_vector.begin as usize) / 8;
 		for i in 0..n {
-			let entry_ptr = *binding_vector.begin.add(i) as *const i32;
+			let entry_ptr = unsafe { *binding_vector.begin.add(i) as *const i32 };
 			if is_analog {
 				tracing::debug!("  bv[{i}]: {entry_ptr:p}");
 			}
 			if !entry_ptr.is_null() {
 				// 0 -> not mouse wheel, 1 -> mouse wheel up, -1 -> mouse wheel down
 				let mouse_wheel = if is_analog {
-					let r_lo = *entry_ptr.add(4).cast::<f32>();
-					let r_hi = *entry_ptr.add(5).cast::<f32>();
+					let r_lo = unsafe { *entry_ptr.add(4).cast::<f32>() };
+					let r_hi = unsafe { *entry_ptr.add(5).cast::<f32>() };
 					let mut abs_range = [OrderedFloat(r_lo.abs()), OrderedFloat(r_hi.abs())];
 					abs_range.sort();
 
@@ -324,9 +324,9 @@ impl BindingEntry {
 					0
 				};
 				match mouse_wheel {
-					0 => out.push(Self::new(*entry_ptr.add(2), *entry_ptr.add(3))),
-					1 => out.push(Self::new(*entry_ptr.add(2), 4)),
-					-1 => out.push(Self::new(*entry_ptr.add(2), 5)),
+					0 => unsafe { out.push(Self::new(*entry_ptr.add(2), *entry_ptr.add(3))) },
+					1 => unsafe { out.push(Self::new(*entry_ptr.add(2), 4)) },
+					-1 => unsafe { out.push(Self::new(*entry_ptr.add(2), 5)) },
 					_ => unreachable!(),
 				}
 			}

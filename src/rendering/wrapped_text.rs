@@ -1,4 +1,4 @@
-use imgui::{DrawListMut, Ui};
+use imgui::Ui;
 use unicode_bidi::{BidiClass, bidi_class};
 
 pub struct WrappedText {
@@ -70,7 +70,7 @@ impl WrappedText {
     pub fn directional_line(line: &str) -> String {
         let line = Self::group_directions(line.split_whitespace().map(Self::directional_word));
         let first_is_rtl = line.first().is_some_and(|(_, dir)| *dir);
-        let mut sections = line.into_iter()
+        let sections = line.into_iter()
             .map(|(mut words, is_rtl)| {
                 if is_rtl {
                     words.reverse();
@@ -148,44 +148,6 @@ impl WrappedText {
                 );
             }
         });
-    }
-
-    #[deprecated]
-    pub fn add_to_draw_list(&self, draw_list: &DrawListMut, pos: [f32; 2], color: [f32; 4], centered: Centered, shadow: bool) {
-        for (i, (line, width)) in self.lines.iter().zip(self.widths.iter()).enumerate() {
-            let x = if centered.x() {
-                pos[0] - width / 2.0
-            } else {
-                pos[0]
-            };
-            let y = if centered.y() {
-                pos[1] + i as f32 * self.line_height - (self.lines.len() as f32 / 2.0) * self.line_height
-            } else {
-                pos[1] + i as f32 * self.line_height
-            };
-
-            if shadow {
-                const SHADOW_DELTAS: [[f32; 2]; 4] = [
-                    [-1.0, -1.0], /*[0.0, -1.0],*/ [1.0, -1.0],
-                    /*[-1.0,  0.0], [0.0,  0.0], [1.0,  0.0],*/
-                    [-1.0,  1.0], /*[0.0,  1.0],*/ [1.0,  1.0],
-                ];
-
-                for [dx, dy] in SHADOW_DELTAS {
-                    draw_list.add_text(
-                        [x + dx, y + dy],
-                        [0.0, 0.0, 0.0, 1.0],
-                        line,
-                    );
-                }
-            }
-
-            draw_list.add_text(
-                [x, y],
-                color,
-                line,
-            );
-        }
     }
 }
 

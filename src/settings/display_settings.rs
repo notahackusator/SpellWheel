@@ -95,9 +95,6 @@ impl DisplaySettings {
             self.shown = !self.shown;
         }
         IS_OPEN.store(self.shown, Ordering::Relaxed);
-        if !self.shown {
-            return;
-        }
     }
 
     pub fn update_toml(&mut self) {

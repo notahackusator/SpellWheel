@@ -1,12 +1,7 @@
-use std::cell::OnceCell;
 use std::mem;
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicU8, AtomicUsize, Ordering};
-use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
 use retour::GenericDetour;
 use std::sync::OnceLock;
-use std::time::Instant;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-use crate::debugging::add_to_screen_debug;
 use crate::game_interface::poll_use_quick_item;
 use crate::io::bindings::{get_item_bindings, get_spell_bindings};
 use crate::settings::{InputType, Settings};
@@ -139,9 +134,7 @@ unsafe extern "C" fn generic_hook<const I: usize>(a: usize, b: usize, c: usize, 
 		return 0;
 	}
 
-	let res = INPUT_HOOKS[I].get().unwrap().call(a, b, c, d);
-
-	res
+	INPUT_HOOKS[I].get().unwrap().call(a, b, c, d)
 }
 
 const INPUT_HOOK_FNS: [GenericHookFn; NUM_HOOKS] = [

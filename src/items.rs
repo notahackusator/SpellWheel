@@ -60,27 +60,25 @@ impl Item {
     }
 
     pub fn get_name(id: u32) -> Option<String> {
-        unsafe {
-            read_utf16_string(MsgRepository::get_msg(
-                0, Self::BASE_GAME_ITEM_NAME, id
-            )).or(read_utf16_string(MsgRepository::get_msg(
-                0, Self::DLC_ITEM_NAME, id
-            )))
-        }
+        read_utf16_string(MsgRepository::get_msg(
+            0, Self::BASE_GAME_ITEM_NAME, id
+        )).or(read_utf16_string(MsgRepository::get_msg(
+            0, Self::DLC_ITEM_NAME, id
+        )))
     }
 }
 
-pub unsafe fn read_utf16_string(ptr: Option<NonNull<u16>>) -> Option<String> {
+pub fn read_utf16_string(ptr: Option<NonNull<u16>>) -> Option<String> {
     ptr.map(|ptr| {
         let mut len = 0;
         let mut p = ptr.as_ptr();
 
-        while *p != 0 {
+        while unsafe { *p != 0 } {
             len += 1;
-            p = p.add(1);
+            p = unsafe { p.add(1) };
         }
 
-        let slice = std::slice::from_raw_parts(ptr.as_ptr(), len);
+        let slice = unsafe { std::slice::from_raw_parts(ptr.as_ptr(), len) };
 
         String::from_utf16_lossy(slice)
     })

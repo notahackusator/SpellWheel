@@ -36,9 +36,11 @@ impl ListenerStatus {
 	}
 }
 
+pub type ListenerEntry = (Option<String>, (Listener, ListenerStatus));
+
 lazy_static!(
 	static ref PREV_TICK: Arc<Mutex<HashSet<i32>>> = Arc::new(Mutex::new(HashSet::new()));
-	static ref LISTENERS: Arc<Mutex<Vec<(Option<String>, (Listener, ListenerStatus))>>> = Arc::new(Mutex::new(Vec::new()));
+	static ref LISTENERS: Arc<Mutex<Vec<ListenerEntry>>> = Arc::new(Mutex::new(Vec::new()));
 );
 
 pub fn tick_listeners() {

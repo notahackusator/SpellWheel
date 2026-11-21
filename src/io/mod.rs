@@ -1,11 +1,10 @@
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::gamepad::set_last_open_is_controller;
-use crate::io::bindings::{set_spell_bindings, Bindings, set_item_bindings, PhysicalKeys, PressedStatus};
+use crate::io::bindings::{set_spell_bindings, Bindings, set_item_bindings, PressedStatus};
 use crate::keyboard::KEYS;
 use crate::rendering::wheel_renderer::WheelType;
 use crate::settings::{InputType, Settings};
 use crate::{in_menus, keyboard};
-use bindings::BindingEntry;
 use eldenring::cs::{CSInGamePad, UserInputKey};
 use eldenring::fd4::FD4PadManager;
 use fromsoftware_shared::FromStatic;
@@ -13,10 +12,7 @@ use hudhook::windows::Win32::System::Threading::GetCurrentProcessId;
 use hudhook::windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_CAPITAL, VK_TAB};
 use hudhook::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use lazy_static::lazy_static;
-use std::sync::{Arc, LockResult, Mutex, MutexGuard};
-use std::sync::atomic::AtomicBool;
-use windows::Win32::UI::Input::KeyboardAndMouse::VK_0;
-use crate::keyboard::listener::{static_listener, Listener};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 pub mod bindings;
 pub mod hook;
@@ -86,13 +82,13 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 			current_spell_status
 		} else {
 			global_spell_status.flip_if_true_false(&current_spell_status, &prev_spell_status);
-			global_spell_status.clone()
+			*global_spell_status
 		};
 		let item_status = if let InputType::Hold = item_wheel_input_type {
 			current_item_status
 		} else {
 			global_item_status.flip_if_true_false(&current_item_status, &prev_item_status);
-			global_item_status.clone()
+			*global_item_status
 		};
 		*prev_spell_status = current_spell_status;
 		*prev_item_status = current_item_status;
@@ -161,7 +157,7 @@ pub fn io_selected_wheel_type(pad: Option<&CSInGamePad>) -> WheelType {
 					*global = None;
 				}
 			}
-			global.clone()
+			*global
 		};
 		*prev = current;
 		if let Some(value) = open_wheel_type {

@@ -1,6 +1,3 @@
-use eldenring::cs::UserInputKey;
-use eldenring::fd4::FD4PadManager;
-use fromsoftware_shared::FromStatic;
 use crate::debugging::{add_to_screen_debug, is_debugging};
 use crate::font::FontId;
 use crate::glyphs::font_manager::FontManager;

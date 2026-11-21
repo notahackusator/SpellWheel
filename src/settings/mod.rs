@@ -6,7 +6,6 @@ use lazy_static::lazy_static;
 use std::fs::{read_to_string, write};
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 use std::time::Duration;
-use serde::{Deserialize, Deserializer};
 use crate::paths;
 
 macro_rules! settings {

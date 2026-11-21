@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 use std::mem;
-use std::sync::atomic::{AtomicBool, AtomicI16, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use hudhook::windows::core::Interface;
 use hudhook::windows::Win32::Devices::HumanInterfaceDevice::{DirectInput8Create, GUID_SysKeyboard, IDirectInput8W, IDirectInputDevice8W};
@@ -8,7 +8,6 @@ use lazy_static::lazy_static;
 use retour::GenericDetour;
 use windows::core::s;
 use windows::Win32::System::LibraryLoader::{GetModuleHandleA, GetModuleHandleW, GetProcAddress};
-use crate::debugging::add_to_screen_debug;
 use crate::get_tick;
 use crate::settings::display_settings::display_settings_open;
 
